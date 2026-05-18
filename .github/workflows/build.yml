@@ -1,0 +1,101 @@
+name: Build Segmento
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore Segmento.csproj
+
+    - name: Build application
+      run: dotnet build Segmento.csproj -c Release --no-restore
+
+    - name: Publish single-file EXE
+      run: |
+        dotnet publish Segmento.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:EnableCompressionInSingleFile=false `
+          -p:DebugType=None `
+          -p:DebugSymbols=false `
+          -o ./publish
+
+    - name: Verify EXE exists
+      run: |
+        Get-ChildItem ./publish/
+        if (!(Test-Path ./publish/Segmento.exe)) {
+          Write-Error "EXE file not found!"
+          exit 1
+        }
+        $size = (Get-Item ./publish/Segmento.exe).Length / 1MB
+        Write-Host "EXE size: $size MB"
+
+    - name: Upload EXE as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Segmento-Windows-x64
+        path: ./publish/Segmento.exe
+        retention-days: 90
+
+    - name: Delete old release
+      uses: dev-drprasad/delete-tag-and-release@v1.1
+      with:
+        tag_name: latest
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        delete_release: true
+      continue-on-error: true
+
+    - name: Wait for deletion
+      run: Start-Sleep -Seconds 5
+
+    - name: Create new release with EXE
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: latest
+        name: Segmento v2.0 - Premium UI
+        body: |
+          ## Segmento v2.0 - Premium Redesign
+          
+          Calkowicie nowy interfejs - monochromatyczny Windows 11 premium design.
+          
+          ### Nowosci:
+          - Sidebar navigation (Import, Wybor, Organizuj, Eksport)
+          - Custom titlebar z Mica/Acrylic
+          - Premium monochromatyczny design (czarno-bialy)
+          - Card-based thumbnail grid z cieniem
+          - Modern drag and drop z animacjami
+          - Segoe Fluent Icons
+          - Segoe UI Variable typography
+          
+          ### Pobierz:
+          Pobierz Segmento.exe ponizej.
+          
+          ### Pierwsze uruchomienie:
+          Windows moze pokazac SmartScreen - kliknij "Wiecej informacji" a nastepnie "Uruchom mimo to".
+        files: ./publish/Segmento.exe
+        draft: false
+        prerelease: false
+        make_latest: true
+        fail_on_unmatched_files: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
