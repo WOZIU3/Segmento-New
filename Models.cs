@@ -135,7 +135,7 @@ namespace Segmento
 
         // Niebieski border gdy zaznaczona (systemowy Windows #0078D4)
         public Brush SelectionBorderBrush => IsSelected
-            ? new SolidColorBrush(Color.FromRgb(0, 120, 212))
+            ? new SolidColorBrush(Color.FromRgb(250, 250, 250))
             : new SolidColorBrush(Color.FromRgb(42, 42, 45));
 
         // Biały border w organize; biały też gdy drop target
