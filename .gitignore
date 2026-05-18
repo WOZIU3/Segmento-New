@@ -1,0 +1,12 @@
+bin/
+obj/
+publish/
+out/
+.vs/
+*.user
+*.userosscache
+*.suo
+.vscode/
+.idea/
+packages/
+*.nupkg
