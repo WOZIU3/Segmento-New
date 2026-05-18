@@ -472,7 +472,7 @@
                                 <Rectangle x:Name="RubberBandRect"
                                            Visibility="Collapsed"
                                            Fill="#330078D4"
-                                           Stroke="#0078D4"
+                                           Stroke="#EDEDED"
                                            StrokeThickness="1"/>
                             </Canvas>
                         </Grid>
