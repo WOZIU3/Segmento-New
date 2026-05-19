@@ -865,6 +865,16 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
                 EditorInkCanvas.Strokes.RemoveAt(
                     EditorInkCanvas.Strokes.Count - 1);
         }
+        private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+            e.Handled = true;
+        
+            double delta = e.Delta > 0 ? 0.1 : -0.1;
+            double newScale = Math.Clamp(EditorScale.ScaleX + delta, 0.2, 4.0);
+            EditorScale.ScaleX = newScale;
+            EditorScale.ScaleY = newScale;
+        }
         
         #endregion
 
