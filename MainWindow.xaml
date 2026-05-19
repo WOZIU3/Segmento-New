@@ -714,8 +714,7 @@
                 
                             <!-- Warstwa InkCanvas: gumka + rysowanie -->
                             <InkCanvas x:Name="EditorInkCanvas"
-                                       Background="Transparent"
-                                       DefaultDrawingAttributes="{x:Null}"/>
+                                       Background="Transparent"/>
                 
                             <!-- Warstwa Canvas: tekst i obrazki -->
                             <Canvas x:Name="EditorOverlayCanvas"
