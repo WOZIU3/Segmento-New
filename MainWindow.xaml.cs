@@ -724,15 +724,27 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
         
         // --- Przełączanie narzędzi ---
         
-        private void Tool_Checked(object sender, RoutedEventArgs e)
+        private void Tool_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not ToggleButton tb) return;
+            if (sender is not Button clicked) return;
         
-            // Odznacz pozostałe
-            foreach (var btn in new[] { ToolTextBtn, ToolImageBtn, ToolEraserBtn })
-                if (btn != tb) btn.IsChecked = false;
+            var allTools = new[] { ToolTextBtn, ToolImageBtn, ToolEraserBtn };
         
-            _currentTool = tb.Tag switch
+            bool wasActive = clicked.Tag?.ToString() == _currentTool.ToString();
+        
+            foreach (var btn in allTools)
+                btn.BorderBrush = SystemColors.ControlDarkBrush;
+        
+            if (wasActive)
+            {
+                _currentTool = EditorTool.None;
+                ApplyToolToInkCanvas();
+                return;
+            }
+        
+            clicked.BorderBrush = Brushes.DodgerBlue;
+        
+            _currentTool = clicked.Tag switch
             {
                 "Text"   => EditorTool.Text,
                 "Image"  => EditorTool.Image,
@@ -742,22 +754,10 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
         
             ApplyToolToInkCanvas();
         
-            // Obraz: od razu wklej ze schowka
             if (_currentTool == EditorTool.Image)
                 PasteImageFromClipboard();
         }
-        
-        private void Tool_Unchecked(object sender, RoutedEventArgs e)
-        {
-            if (ToolTextBtn.IsChecked != true &&
-                ToolImageBtn.IsChecked != true &&
-                ToolEraserBtn.IsChecked != true)
-            {
-                _currentTool = EditorTool.None;
-                ApplyToolToInkCanvas();
-            }
-        }
-        
+                
         private void ApplyToolToInkCanvas()
         {
             switch (_currentTool)
