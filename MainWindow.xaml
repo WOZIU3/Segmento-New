@@ -702,26 +702,28 @@
                 
                     <!-- Obszar edycji -->
                     <ScrollViewer Grid.Row="1"
-                                  HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Auto"
-                                  Background="{DynamicResource WindowBackgroundBrush}">
-                        <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
-                              Margin="32">
-                            <!-- Tło: wyrenderowana strona -->
-                            <Image x:Name="EditorPageImage"
-                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                   Stretch="None"/>
-                
-                            <!-- Warstwa InkCanvas: gumka + rysowanie -->
-                            <InkCanvas x:Name="EditorInkCanvas"
-                                       Background="Transparent"/>
-                
-                            <!-- Warstwa Canvas: tekst i obrazki -->
-                            <Canvas x:Name="EditorOverlayCanvas"
-                                    Background="Transparent"
-                                    MouseLeftButtonDown="EditorCanvas_MouseDown"/>
-                        </Grid>
-                    </ScrollViewer>
+                                      x:Name="EditorScrollViewer"
+                                      HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Background="{DynamicResource WindowBackgroundBrush}"
+                                      PreviewMouseWheel="EditorScroll_PreviewMouseWheel">
+                            <Grid x:Name="EditorCanvasGrid"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Margin="32">
+                                <Grid.LayoutTransform>
+                                    <ScaleTransform x:Name="EditorScale" ScaleX="1" ScaleY="1"/>
+                                </Grid.LayoutTransform>
+                                <Image x:Name="EditorPageImage"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       Stretch="Uniform"
+                                       MaxWidth="900"/>
+                                <InkCanvas x:Name="EditorInkCanvas"
+                                           Background="Transparent"/>
+                                <Canvas x:Name="EditorOverlayCanvas"
+                                        Background="Transparent"
+                                        MouseLeftButtonDown="EditorCanvas_MouseDown"/>
+                            </Grid>
+                        </ScrollViewer>
                 </Grid>
 
                     <!-- Loading overlay -->
