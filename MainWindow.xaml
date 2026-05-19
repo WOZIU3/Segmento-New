@@ -670,10 +670,16 @@
                 
                             <StackPanel Grid.Column="0" Orientation="Horizontal">
                                 <!-- Wybór strony -->
-                                <TextBlock Text="Strona:" VerticalAlignment="Center"
+                                <TextBlock Text="&#xE7C3;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="14" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextSecondaryBrush}"
-                                           Margin="0,0,8,0"/>
-                                <ComboBox x:Name="EditorPageCombo" Width="120"
+                                           Margin="0,0,6,0"/>
+                                <ComboBox x:Name="EditorPageCombo" Width="150"
+                                          Padding="10,6"
+                                          Background="{DynamicResource SurfaceElevatedBrush}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          BorderBrush="{DynamicResource BorderBrush}"
+                                          BorderThickness="1"
                                           SelectionChanged="EditorPageCombo_SelectionChanged"/>
                                 <Border Width="1" Height="14" Background="{DynamicResource BorderBrush}"
                                         Margin="16,0"/>
