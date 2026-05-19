@@ -506,11 +506,17 @@
                                                Foreground="{DynamicResource TextTertiaryBrush}"
                                                Margin="0,2,0,0"/>
                                 </StackPanel>
-                                <Button Grid.Column="1" x:Name="ExportBtn"
-                                        Content="Eksportuj do PDF"
-                                        Style="{StaticResource PrimaryButton}"
-                                        Click="Export_Click"
-                                        IsEnabled="False"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Resetuj i wróć"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Click="ResetAndGoBack_Click"
+                                            Margin="0,0,8,0"/>
+                                    <Button x:Name="ExportBtn"
+                                            Content="Eksportuj do PDF"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Click="Export_Click"
+                                            IsEnabled="False"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
