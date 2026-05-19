@@ -725,21 +725,21 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
         // --- Przełączanie narzędzi ---
         
         private void Tool_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Button clicked) return;
-        
-            var allTools = new[] { ToolTextBtn, ToolImageBtn, ToolEraserBtn };
-        
-            bool wasActive = clicked.Tag?.ToString() == _currentTool.ToString();
-        
-            foreach (var btn in allTools)
-                btn.BorderBrush = SystemColors.ControlDarkBrush;
-        
-            if (wasActive)
             {
-                _currentTool = EditorTool.None;
+                if (sender is not RadioButton rb) return;
+            
+                _currentTool = rb.Tag switch
+                {
+                    "Text"   => EditorTool.Text,
+                    "Image"  => EditorTool.Image,
+                    "Eraser" => EditorTool.Eraser,
+                    _        => EditorTool.None
+                };
+            
                 ApplyToolToInkCanvas();
-                return;
+            
+                if (_currentTool == EditorTool.Image)
+                    PasteImageFromClipboard();
             }
         
             clicked.BorderBrush = Brushes.DodgerBlue;
