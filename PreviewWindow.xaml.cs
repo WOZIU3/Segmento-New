@@ -80,6 +80,7 @@ namespace Segmento
         {
             if (_isClosing) return;
             _isClosing = true;
+            Owner?.Activate(); // przywróć fokus na okno główne przed zamknięciem
             Close();
         }
 
