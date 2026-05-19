@@ -381,6 +381,31 @@ namespace Segmento
             UpdateSelectionInfo();
         }
 
+private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
+        {
+            // 1. Anuluj generowanie miniatur
+            _thumbnailCts?.Cancel();
+            _thumbnailCts = null;
+        
+            // 2. Wyczyść dane
+            _sources.Clear();
+            _pages.Clear();
+            _organizePages.Clear();
+        
+            // 3. Zresetuj UI
+            FileInfoBar.Visibility = Visibility.Collapsed;
+            NavSelect.IsEnabled = false;
+            NavOrganize.IsEnabled = false;
+            NavExport.IsEnabled = false;
+            GoToOrganizeBtn.IsEnabled = false;
+        
+            UpdateNavBadges();
+            StatusText.Text = "Gotowy";
+            StatusRight.Text = "";
+        
+            // 4. Wróć do Import
+            NavImport.IsChecked = true;
+        }
         private void PageTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border border && border.Tag is PageItem page)
