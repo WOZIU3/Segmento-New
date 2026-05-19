@@ -383,14 +383,18 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                                     <Button Content="Zaznacz wszystko" Style="{StaticResource GhostButton}"
-                                            Click="SelectAll_Click" Margin="0,0,4,0"/>
-                                    <Button Content="Wyczyść" Style="{StaticResource GhostButton}"
-                                            Click="DeselectAll_Click" Margin="0,0,12,0"/>
-                                    <Button x:Name="GoToOrganizeBtn"
-                                            Content="Przejdź do organizacji"
-                                            Style="{StaticResource PrimaryButton}"
-                                            Click="GoToOrganize_Click"
-                                            IsEnabled="False"/>
+                                                Click="SelectAll_Click" Margin="0,0,4,0"/>
+                                        <Button Content="Usuń zaznaczenie" Style="{StaticResource GhostButton}"
+                                                Click="DeselectAll_Click" Margin="0,0,12,0"/>
+                                        <Button Content="Resetuj i wróć"
+                                                Style="{StaticResource PrimaryButton}"
+                                                Click="ResetAndGoBack_Click"
+                                                Margin="0,0,8,0"/>
+                                        <Button x:Name="GoToOrganizeBtn"
+                                                Content="Przejdź do organizacji"
+                                                Style="{StaticResource PrimaryButton}"
+                                                Click="GoToOrganize_Click"
+                                                IsEnabled="False"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
