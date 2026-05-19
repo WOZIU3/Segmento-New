@@ -724,39 +724,22 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
         
         // --- Przełączanie narzędzi ---
         
-        private void Tool_Click(object sender, RoutedEventArgs e)
+            private void Tool_Click(object sender, RoutedEventArgs e)
             {
                 if (sender is not RadioButton rb) return;
             
-                _currentTool = rb.Tag switch
-                {
-                    "Text"   => EditorTool.Text,
-                    "Image"  => EditorTool.Image,
-                    "Eraser" => EditorTool.Eraser,
-                    _        => EditorTool.None
-                };
+                string tag = rb.Tag as string ?? string.Empty;
+            
+                if (tag == "Text")        _currentTool = EditorTool.Text;
+                else if (tag == "Image")  _currentTool = EditorTool.Image;
+                else if (tag == "Eraser") _currentTool = EditorTool.Eraser;
+                else                      _currentTool = EditorTool.None;
             
                 ApplyToolToInkCanvas();
             
                 if (_currentTool == EditorTool.Image)
                     PasteImageFromClipboard();
             }
-        
-            clicked.BorderBrush = Brushes.DodgerBlue;
-        
-            _currentTool = clicked.Tag switch
-            {
-                "Text"   => EditorTool.Text,
-                "Image"  => EditorTool.Image,
-                "Eraser" => EditorTool.Eraser,
-                _        => EditorTool.None
-            };
-        
-            ApplyToolToInkCanvas();
-        
-            if (_currentTool == EditorTool.Image)
-                PasteImageFromClipboard();
-        }
                 
         private void ApplyToolToInkCanvas()
         {
