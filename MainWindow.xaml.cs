@@ -121,6 +121,7 @@ namespace Segmento
             ImportView.Visibility = Visibility.Collapsed;
             SelectView.Visibility = Visibility.Collapsed;
             OrganizeView.Visibility = Visibility.Collapsed;
+            EditorView.Visibility = Visibility.Collapsed;
 
             if (rb == NavImport)
             {
