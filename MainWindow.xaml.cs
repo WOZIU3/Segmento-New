@@ -422,6 +422,13 @@ namespace Segmento
             StatusText.Text = "Gotowy";
             StatusRight.Text = "";
         
+            // Wymusz widok importu niezależnie od stanu nawigacji
+            EditorView.Visibility = Visibility.Collapsed;
+            SelectView.Visibility = Visibility.Collapsed;
+            OrganizeView.Visibility = Visibility.Collapsed;
+            ImportView.Visibility = Visibility.Visible;
+            HeaderTitle.Text = "Import PDF";
+            HeaderSubtitle.Text = "Zacznij od wybrania plików PDF";
             NavImport.IsChecked = true;
         }
         private void PageTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
