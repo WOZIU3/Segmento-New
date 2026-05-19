@@ -31,6 +31,9 @@ namespace Segmento
 {
     public partial class MainWindow : Window
     {
+        private enum EditorTool { None, Text, Image, Eraser }
+        private EditorTool _currentTool = EditorTool.None;
+        private PageItem? _editorPage;
         private readonly List<PdfSource> _sources = new();
         private readonly ObservableCollection<PageItem> _pages = new();
         private readonly ObservableCollection<PageItem> _organizePages = new();
@@ -140,6 +143,12 @@ namespace Segmento
             {
                 NavOrganize.IsChecked = true;
                 Export_Click(sender, e);
+            }
+            else if (rb == NavEditor)
+            {
+                EditorView.Visibility = Visibility.Visible;
+                HeaderTitle.Text = "Edytor PDF";
+                HeaderSubtitle.Text = "Dodaj tekst, obraz lub wymaż fragment strony";
             }
         }
 
@@ -634,6 +643,8 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
             UpdateOrganizeOrder();
             NavOrganize.IsChecked = true;
             StatusText.Text = "Przeciągnij strony aby zmienić kolejność";
+
+            ActivateEditor();
         }
 
         private void RemoveFromOrganize_Click(object sender, RoutedEventArgs e)
@@ -646,6 +657,231 @@ private void ResetAndGoBack_Click(object sender, RoutedEventArgs e)
             }
         }
 
+        #endregion
+
+        #region Editor
+
+        private void ActivateEditor()
+        {
+            // Wypełnij ComboBox stronami zaznaczonymi (lub wszystkimi)
+            var source = _organizePages.Count > 0
+                ? _organizePages.ToList()
+                : _pages.Where(p => p.IsSelected).ToList();
+        
+            EditorPageCombo.ItemsSource = source;
+            EditorPageCombo.DisplayMemberPath = "DisplayName";
+        
+            if (source.Count > 0)
+                EditorPageCombo.SelectedIndex = 0;
+        
+            NavEditor.IsEnabled = true;
+        }
+        
+        private async void EditorPageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (EditorPageCombo.SelectedItem is not PageItem page) return;
+            _editorPage = page;
+        
+            // Wyczyść warstwy
+            EditorOverlayCanvas.Children.Clear();
+            EditorInkCanvas.Strokes.Clear();
+        
+            // Renderuj stronę w wysokiej jakości jako tło
+            var bitmap = await Task.Run(() =>
+                RenderPageToEditorBitmap(page.SourceBytes, page.OriginalPageNumber - 1));
+        
+            EditorPageImage.Source = bitmap;
+        
+            // Dopasuj rozmiar warstw do strony
+            double w = bitmap.PixelWidth;
+            double h = bitmap.PixelHeight;
+            EditorInkCanvas.Width = w;
+            EditorInkCanvas.Height = h;
+            EditorOverlayCanvas.Width = w;
+            EditorOverlayCanvas.Height = h;
+        }
+        
+        private static BitmapImage RenderPageToEditorBitmap(byte[] pdfBytes, int pageIndex)
+        {
+            using var pdfStream = new MemoryStream(pdfBytes);
+            var opts = new PDFtoImage.RenderOptions { Dpi = 150, WithAspectRatio = true };
+            using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: pageIndex, options: opts);
+            using var skImage = SkiaSharp.SKImage.FromBitmap(skBitmap);
+            using var skData = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
+        
+            var bmp = new BitmapImage();
+            using (var ms = new MemoryStream(skData.ToArray()))
+            {
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.StreamSource = ms;
+                bmp.EndInit();
+            }
+            bmp.Freeze();
+            return bmp;
+        }
+        
+        // --- Przełączanie narzędzi ---
+        
+        private void Tool_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ToggleButton tb) return;
+        
+            // Odznacz pozostałe
+            foreach (var btn in new[] { ToolTextBtn, ToolImageBtn, ToolEraserBtn })
+                if (btn != tb) btn.IsChecked = false;
+        
+            _currentTool = tb.Tag switch
+            {
+                "Text"   => EditorTool.Text,
+                "Image"  => EditorTool.Image,
+                "Eraser" => EditorTool.Eraser,
+                _        => EditorTool.None
+            };
+        
+            ApplyToolToInkCanvas();
+        
+            // Obraz: od razu wklej ze schowka
+            if (_currentTool == EditorTool.Image)
+                PasteImageFromClipboard();
+        }
+        
+        private void Tool_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (ToolTextBtn.IsChecked != true &&
+                ToolImageBtn.IsChecked != true &&
+                ToolEraserBtn.IsChecked != true)
+            {
+                _currentTool = EditorTool.None;
+                ApplyToolToInkCanvas();
+            }
+        }
+        
+        private void ApplyToolToInkCanvas()
+        {
+            switch (_currentTool)
+            {
+                case EditorTool.Eraser:
+                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
+                    // Biały "atrament" = efekt gumki wizualnej
+                    EditorInkCanvas.DefaultDrawingAttributes = new System.Windows.Ink.DrawingAttributes
+                    {
+                        Color = Colors.White,
+                        Width = 20,
+                        Height = 20,
+                        StylusTip = System.Windows.Ink.StylusTip.Rectangle
+                    };
+                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+                    EditorInkCanvas.IsHitTestVisible = true;
+                    break;
+        
+                default:
+                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.None;
+                    EditorInkCanvas.IsHitTestVisible = false;
+                    break;
+            }
+        }
+        
+        // --- Tekst ---
+        
+        private void EditorCanvas_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_currentTool != EditorTool.Text) return;
+        
+            Point pos = e.GetPosition(EditorOverlayCanvas);
+        
+            var tb = new TextBox
+            {
+                Text = "Tekst",
+                FontSize = 16,
+                Foreground = Brushes.Black,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(1),
+                BorderBrush = Brushes.DodgerBlue,
+                MinWidth = 80,
+                AcceptsReturn = true
+            };
+        
+            Canvas.SetLeft(tb, pos.X);
+            Canvas.SetTop(tb, pos.Y);
+            EditorOverlayCanvas.Children.Add(tb);
+            tb.Focus();
+            tb.SelectAll();
+        }
+        
+        // --- Obraz ze schowka ---
+        
+        private void PasteImageFromClipboard()
+        {
+            BitmapSource? bmpSrc = null;
+        
+            if (Clipboard.ContainsImage())
+                bmpSrc = Clipboard.GetImage();
+            else if (Clipboard.ContainsFileDropList())
+            {
+                var files = Clipboard.GetFileDropList();
+                var imgFile = files.Cast<string>()
+                    .FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                                      || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
+                if (imgFile != null)
+                    bmpSrc = new BitmapImage(new Uri(imgFile));
+            }
+        
+            if (bmpSrc == null)
+            {
+                StatusText.Text = "Schowek nie zawiera obrazu";
+                ToolImageBtn.IsChecked = false;
+                return;
+            }
+        
+            var img = new Image
+            {
+                Source = bmpSrc,
+                Width = Math.Min(bmpSrc.PixelWidth, 400),
+                Cursor = Cursors.SizeAll
+            };
+        
+            // Możliwość przeciągania wklejonego obrazka
+            img.MouseLeftButtonDown += (s, e) =>
+            {
+                img.CaptureMouse();
+                e.Handled = true;
+            };
+            img.MouseMove += (s, e) =>
+            {
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    var p = e.GetPosition(EditorOverlayCanvas);
+                    Canvas.SetLeft(img, p.X - img.Width / 2);
+                    Canvas.SetTop(img, p.Y - img.ActualHeight / 2);
+                }
+            };
+            img.MouseLeftButtonUp += (s, e) => img.ReleaseMouseCapture();
+        
+            Canvas.SetLeft(img, 50);
+            Canvas.SetTop(img, 50);
+            EditorOverlayCanvas.Children.Add(img);
+            ToolImageBtn.IsChecked = false;
+            _currentTool = EditorTool.None;
+        }
+        
+        // --- Cofnij ---
+        
+        private void EditorUndo_Click(object sender, RoutedEventArgs e)
+        {
+            // Cofnij ostatni element Canvas
+            if (EditorOverlayCanvas.Children.Count > 0)
+            {
+                EditorOverlayCanvas.Children.RemoveAt(
+                    EditorOverlayCanvas.Children.Count - 1);
+                return;
+            }
+            // Cofnij ostatni stroke InkCanvas
+            if (EditorInkCanvas.Strokes.Count > 0)
+                EditorInkCanvas.Strokes.RemoveAt(
+                    EditorInkCanvas.Strokes.Count - 1);
+        }
+        
         #endregion
 
         #region Drag & Drop Organize
