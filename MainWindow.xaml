@@ -678,18 +678,18 @@
                                 <Border Width="1" Height="14" Background="{DynamicResource BorderBrush}"
                                         Margin="16,0"/>
                                 <!-- Narzędzia -->
-                                <Button x:Name="ToolTextBtn" Content="Tekst"
-                                        Style="{StaticResource GhostButton}"
-                                        Click="Tool_Click"
-                                        Tag="Text" Margin="0,0,4,0"/>
-                                <Button x:Name="ToolImageBtn" Content="Obraz"
-                                        Style="{StaticResource GhostButton}"
-                                        Click="Tool_Click"
-                                        Tag="Image" Margin="0,0,4,0"/>
-                                <Button x:Name="ToolEraserBtn" Content="Gumka"
-                                        Style="{StaticResource GhostButton}"
-                                        Click="Tool_Click"
-                                        Tag="Eraser" Margin="0,0,4,0"/>
+                                <RadioButton x:Name="ToolTextBtn" Content="Tekst"
+                                             Style="{StaticResource SidebarButton}"
+                                             GroupName="EditorTools"
+                                             Click="Tool_Click" Tag="Text" Margin="0,0,4,0"/>
+                                <RadioButton x:Name="ToolImageBtn" Content="Obraz"
+                                             Style="{StaticResource SidebarButton}"
+                                             GroupName="EditorTools"
+                                             Click="Tool_Click" Tag="Image" Margin="0,0,4,0"/>
+                                <RadioButton x:Name="ToolEraserBtn" Content="Gumka"
+                                             Style="{StaticResource SidebarButton}"
+                                             GroupName="EditorTools"
+                                             Click="Tool_Click" Tag="Eraser" Margin="0,0,4,0"/>
                                 <Button Content="Cofnij" Style="{StaticResource GhostButton}"
                                         Click="EditorUndo_Click" Margin="8,0,0,0"/>
                             </StackPanel>
