@@ -352,14 +352,25 @@
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" Margin="0,8,0,28"/>
-                                    <Button Style="{StaticResource PrimaryButton}"
-                                                Click="SelectFile_Click"
+                                                <Button Click="SelectFile_Click"
                                                 HorizontalAlignment="Center"
                                                 Padding="28,12"
-                                                Background="#1a1a1a"
-                                                BorderBrush="#2e2e2e">
-                                            <TextBlock FontSize="14"
-                                                       FontWeight="SemiBold">
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock FontSize="14" FontWeight="SemiBold">
                                                 <TextBlock.Foreground>
                                                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
                                                         <GradientStop Color="#C43A00" Offset="0"/>
