@@ -696,13 +696,6 @@ namespace Segmento
                 RenderPageToEditorBitmap(page.SourceBytes, page.OriginalPageNumber - 1));
 
             EditorPageImage.Source = bitmap;
-
-            double w = bitmap.PixelWidth;
-            double h = bitmap.PixelHeight;
-            EditorInkCanvas.Width = w;
-            EditorInkCanvas.Height = h;
-            EditorOverlayCanvas.Width = w;
-            EditorOverlayCanvas.Height = h;
         }
 
         private static BitmapImage RenderPageToEditorBitmap(byte[] pdfBytes, int pageIndex)
