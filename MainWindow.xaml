@@ -352,11 +352,25 @@
                                                FontSize="13"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                HorizontalAlignment="Center" Margin="0,8,0,28"/>
-                                    <Button Content="Wybierz pliki"
-                                            Style="{StaticResource PrimaryButton}"
-                                            Click="SelectFile_Click"
-                                            HorizontalAlignment="Center"
-                                            Padding="28,12"/>
+                                    <Button Style="{StaticResource PrimaryButton}"
+                                                Click="SelectFile_Click"
+                                                HorizontalAlignment="Center"
+                                                Padding="28,12"
+                                                Background="#1a1a1a"
+                                                BorderBrush="#2e2e2e">
+                                            <TextBlock FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       LetterSpacing="0.3">
+                                                <TextBlock.Foreground>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#C43A00" Offset="0"/>
+                                                        <GradientStop Color="#E85E00" Offset="0.4"/>
+                                                        <GradientStop Color="#F07820" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </TextBlock.Foreground>
+                                                Wybierz pliki
+                                            </TextBlock>
+                                        </Button>
                                     <TextBlock Text="Obsługiwany format: PDF"
                                                FontSize="11"
                                                Foreground="{DynamicResource TextTertiaryBrush}"
