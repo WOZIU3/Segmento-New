@@ -880,7 +880,8 @@ namespace Segmento
             if (EditorInkCanvas.Strokes.Count > 0)
                 EditorInkCanvas.Strokes.RemoveAt(
                     EditorInkCanvas.Strokes.Count - 1);
-                    
+        }
+
         private async void SaveEditorPage_Click(object sender, RoutedEventArgs e)
         {
             if (_editorPage == null) return;
@@ -947,8 +948,6 @@ namespace Segmento
             {
                 SaveEditorBtn.IsEnabled = true;
             }
-        }
-        
         }
         
         private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
