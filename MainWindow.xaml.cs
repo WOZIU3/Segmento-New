@@ -74,7 +74,6 @@ namespace Segmento
 
         private void OnStateChanged(object? sender, EventArgs e)
         {
-            // Kwadrat-glyph rysowany wektorowo; aktualizujemy tylko podpowiedź
             MaximizeBtn.ToolTip = WindowState == WindowState.Maximized
                 ? "Przywróć" : "Maksymalizuj";
         }
@@ -397,18 +396,18 @@ namespace Segmento
         {
             _thumbnailCts?.Cancel();
             _thumbnailCts = null;
-        
+
             _sources.Clear();
             _pages.Clear();
             _organizePages.Clear();
-        
+
             FileInfoBar.Visibility = Visibility.Collapsed;
             NavSelect.IsEnabled = false;
             NavOrganize.IsEnabled = false;
             NavExport.IsEnabled = false;
             NavEditor.IsEnabled = false;
             GoToOrganizeBtn.IsEnabled = false;
-        
+
             // Wyczyść edytor
             EditorInkCanvas.Strokes.Clear();
             EditorInkCanvas.Children.Clear();
@@ -418,11 +417,11 @@ namespace Segmento
             EditorScale.ScaleX = 1;
             EditorScale.ScaleY = 1;
             _currentTool = EditorTool.None;
-        
+
             UpdateNavBadges();
             StatusText.Text = "Gotowy";
             StatusRight.Text = "";
-        
+
             // Wymusz widok importu niezależnie od stanu nawigacji
             EditorView.Visibility = Visibility.Collapsed;
             SelectView.Visibility = Visibility.Collapsed;
@@ -432,6 +431,7 @@ namespace Segmento
             HeaderSubtitle.Text = "Zacznij od wybrania plików PDF";
             NavImport.IsChecked = true;
         }
+
         private void PageTile_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is Border border && border.Tag is PageItem page)
@@ -483,15 +483,12 @@ namespace Segmento
 
         private void PagesArea_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            // Rubber band tylko gdy klik w pustym obszarze (nie na kafelku/checkboxie)
             if (e.OriginalSource is DependencyObject src)
             {
                 if (IsInsidePageTile(src)) return;
-                // Nie uruchamiaj gdy klik na scrollbar / thumb / przyciskach
                 if (IsInsideScrollBar(src)) return;
             }
 
-            // Nie uruchamiaj gdy klik poza widocznym obszarem tresci (np. nad scrollbarem)
             Point clickPos = e.GetPosition(PagesScroll);
             if (clickPos.X > PagesScroll.ViewportWidth || clickPos.Y > PagesScroll.ViewportHeight)
                 return;
@@ -499,7 +496,6 @@ namespace Segmento
             _isRubberBanding = true;
             _rubberStart = clickPos;
 
-            // Ctrl = dodaj do zaznaczenia; bez Ctrl = nowe zaznaczenie
             bool additive = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
             if (!additive)
             {
@@ -533,7 +529,6 @@ namespace Segmento
 
             var selectionRect = new Rect(x, y, w, h);
 
-            // Sprawdz kazdy kafelek - czy przecina prostokat zaznaczenia
             foreach (var page in _pages)
             {
                 var container = PagesList.ItemContainerGenerator.ContainerFromItem(page) as FrameworkElement;
@@ -551,7 +546,6 @@ namespace Segmento
                     bool intersects = selectionRect.IntersectsWith(tileRect);
                     bool wasInitial = _rubberInitialSelection.Contains(page);
 
-                    // Zaznaczone jesli: w prostokacie LUB bylo zaznaczone na starcie (Ctrl)
                     page.IsSelected = intersects || wasInitial;
                 }
                 catch { }
@@ -569,7 +563,6 @@ namespace Segmento
             UpdateSelectionInfo();
         }
 
-        /// <summary>Sprawdza czy klik trafil w kafelek strony lub checkbox.</summary>
         private static bool IsInsidePageTile(DependencyObject src)
         {
             DependencyObject? current = src;
@@ -582,7 +575,6 @@ namespace Segmento
             return false;
         }
 
-        /// <summary>Sprawdza czy klik trafil w pasek przewijania (scrollbar / thumb).</summary>
         private static bool IsInsideScrollBar(DependencyObject src)
         {
             DependencyObject? current = src;
@@ -595,7 +587,6 @@ namespace Segmento
             return false;
         }
 
-        /// <summary>Znajduje Border kafelka (ten z Tag = PageItem) wewnatrz kontenera.</summary>
         private static Border? FindTileBorder(DependencyObject container)
         {
             if (container is Border cb && cb.Tag is PageItem) return cb;
@@ -680,36 +671,32 @@ namespace Segmento
 
         private void ActivateEditor()
         {
-            // Wypełnij ComboBox stronami zaznaczonymi (lub wszystkimi)
             var source = _organizePages.Count > 0
                 ? _organizePages.ToList()
                 : _pages.Where(p => p.IsSelected).ToList();
-        
+
             EditorPageCombo.ItemsSource = source;
             EditorPageCombo.DisplayMemberPath = "DisplayName";
-        
+
             if (source.Count > 0)
                 EditorPageCombo.SelectedIndex = 0;
-        
+
             NavEditor.IsEnabled = true;
         }
-        
+
         private async void EditorPageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (EditorPageCombo.SelectedItem is not PageItem page) return;
             _editorPage = page;
-        
-            // Wyczyść warstwy
+
             EditorOverlayCanvas.Children.Clear();
             EditorInkCanvas.Strokes.Clear();
-        
-            // Renderuj stronę w wysokiej jakości jako tło
+
             var bitmap = await Task.Run(() =>
                 RenderPageToEditorBitmap(page.SourceBytes, page.OriginalPageNumber - 1));
-        
+
             EditorPageImage.Source = bitmap;
-        
-            // Dopasuj rozmiar warstw do strony
+
             double w = bitmap.PixelWidth;
             double h = bitmap.PixelHeight;
             EditorInkCanvas.Width = w;
@@ -717,7 +704,7 @@ namespace Segmento
             EditorOverlayCanvas.Width = w;
             EditorOverlayCanvas.Height = h;
         }
-        
+
         private static BitmapImage RenderPageToEditorBitmap(byte[] pdfBytes, int pageIndex)
         {
             using var pdfStream = new MemoryStream(pdfBytes);
@@ -725,7 +712,7 @@ namespace Segmento
             using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: pageIndex, options: opts);
             using var skImage = SkiaSharp.SKImage.FromBitmap(skBitmap);
             using var skData = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
-        
+
             var bmp = new BitmapImage();
             using (var ms = new MemoryStream(skData.ToArray()))
             {
@@ -737,33 +724,31 @@ namespace Segmento
             bmp.Freeze();
             return bmp;
         }
-        
+
         // --- Przełączanie narzędzi ---
-        
-            private void Tool_Click(object sender, RoutedEventArgs e)
-            {
-                if (sender is not RadioButton rb) return;
-            
-                string tag = rb.Tag as string ?? string.Empty;
-            
-                if (tag == "Text")        _currentTool = EditorTool.Text;
-                else if (tag == "Image")  _currentTool = EditorTool.Image;
-                else if (tag == "Eraser") _currentTool = EditorTool.Eraser;
-                else                      _currentTool = EditorTool.None;
-            
-                ApplyToolToInkCanvas();
-            
-                if (_currentTool == EditorTool.Image)
-                    PasteImageFromClipboard();
-            }
-                
+
+        private void Tool_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton rb) return;
+
+            string tag = rb.Tag as string ?? string.Empty;
+
+            if (tag == "Text")        _currentTool = EditorTool.Text;
+            else if (tag == "Image")  _currentTool = EditorTool.Image;
+            else if (tag == "Eraser") _currentTool = EditorTool.Eraser;
+            else                      _currentTool = EditorTool.None;
+
+            ApplyToolToInkCanvas();
+
+            if (_currentTool == EditorTool.Image)
+                PasteImageFromClipboard();
+        }
+
         private void ApplyToolToInkCanvas()
         {
             switch (_currentTool)
             {
                 case EditorTool.Eraser:
-                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.EraseByPoint;
-                    // Biały "atrament" = efekt gumki wizualnej
                     EditorInkCanvas.DefaultDrawingAttributes = new System.Windows.Ink.DrawingAttributes
                     {
                         Color = Colors.White,
@@ -774,22 +759,22 @@ namespace Segmento
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
                     EditorInkCanvas.IsHitTestVisible = true;
                     break;
-        
+
                 default:
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.None;
                     EditorInkCanvas.IsHitTestVisible = false;
                     break;
             }
         }
-        
+
         // --- Tekst ---
-        
+
         private void EditorCanvas_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_currentTool != EditorTool.Text) return;
-        
+
             Point pos = e.GetPosition(EditorOverlayCanvas);
-        
+
             var tb = new TextBox
             {
                 Text = "Tekst",
@@ -801,20 +786,20 @@ namespace Segmento
                 MinWidth = 80,
                 AcceptsReturn = true
             };
-        
+
             Canvas.SetLeft(tb, pos.X);
             Canvas.SetTop(tb, pos.Y);
             EditorOverlayCanvas.Children.Add(tb);
             tb.Focus();
             tb.SelectAll();
         }
-        
+
         // --- Obraz ze schowka ---
-        
+
         private void PasteImageFromClipboard()
         {
             BitmapSource? bmpSrc = null;
-        
+
             if (Clipboard.ContainsImage())
                 bmpSrc = Clipboard.GetImage();
             else if (Clipboard.ContainsFileDropList())
@@ -826,22 +811,21 @@ namespace Segmento
                 if (imgFile != null)
                     bmpSrc = new BitmapImage(new Uri(imgFile));
             }
-        
+
             if (bmpSrc == null)
             {
                 StatusText.Text = "Schowek nie zawiera obrazu";
                 ToolImageBtn.IsChecked = false;
                 return;
             }
-        
+
             var img = new Image
             {
                 Source = bmpSrc,
                 Width = Math.Min(bmpSrc.PixelWidth, 400),
                 Cursor = Cursors.SizeAll
             };
-        
-            // Możliwość przeciągania wklejonego obrazka
+
             img.MouseLeftButtonDown += (s, e) =>
             {
                 img.CaptureMouse();
@@ -857,26 +841,24 @@ namespace Segmento
                 }
             };
             img.MouseLeftButtonUp += (s, e) => img.ReleaseMouseCapture();
-        
+
             Canvas.SetLeft(img, 50);
             Canvas.SetTop(img, 50);
             EditorOverlayCanvas.Children.Add(img);
             ToolImageBtn.IsChecked = false;
             _currentTool = EditorTool.None;
         }
-        
+
         // --- Cofnij ---
-        
+
         private void EditorUndo_Click(object sender, RoutedEventArgs e)
         {
-            // Cofnij ostatni element Canvas
             if (EditorOverlayCanvas.Children.Count > 0)
             {
                 EditorOverlayCanvas.Children.RemoveAt(
                     EditorOverlayCanvas.Children.Count - 1);
                 return;
             }
-            // Cofnij ostatni stroke InkCanvas
             if (EditorInkCanvas.Strokes.Count > 0)
                 EditorInkCanvas.Strokes.RemoveAt(
                     EditorInkCanvas.Strokes.Count - 1);
@@ -885,58 +867,51 @@ namespace Segmento
         private async void SaveEditorPage_Click(object sender, RoutedEventArgs e)
         {
             if (_editorPage == null) return;
-        
+
             try
             {
                 SaveEditorBtn.IsEnabled = false;
                 StatusText.Text = "Zapisywanie zmian...";
-        
-                // Resetuj zoom przed renderowaniem
+
                 double prevScale = EditorScale.ScaleX;
                 EditorScale.ScaleX = 1;
                 EditorScale.ScaleY = 1;
                 EditorCanvasGrid.UpdateLayout();
-        
-                // Renderuj wszystkie warstwy do bitmapy
+
                 var renderBitmap = new RenderTargetBitmap(
                     (int)EditorCanvasGrid.ActualWidth,
                     (int)EditorCanvasGrid.ActualHeight,
                     96, 96,
                     PixelFormats.Pbgra32);
                 renderBitmap.Render(EditorCanvasGrid);
-        
-                // Przywróć zoom
+
                 EditorScale.ScaleX = prevScale;
                 EditorScale.ScaleY = prevScale;
-        
-                // Konwertuj bitmapę do PNG → PDF
+
                 byte[] pdfBytes = await Task.Run(() =>
                 {
-                    // PNG bytes
                     var encoder = new PngBitmapEncoder();
                     encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
                     using var pngStream = new MemoryStream();
                     encoder.Save(pngStream);
                     byte[] pngBytes = pngStream.ToArray();
-        
-                    // Tworzenie PDF z obrazem
+
                     using var outStream = new MemoryStream();
                     using var writer = new ITextPdfWriter(outStream);
                     using var doc = new ITextPdfDocument(writer);
-        
+
                     var imgData = iText.IO.Image.ImageDataFactory.Create(pngBytes);
                     var pdfPage = doc.AddNewPage(
                         new iText.Kernel.Geom.PageSize(imgData.GetWidth(), imgData.GetHeight()));
                     var canvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(pdfPage);
                     canvas.AddImageAt(imgData, 0, 0, false);
                     doc.Close();
-        
+
                     return outStream.ToArray();
                 });
-        
-                // Zapisz zedytowane bajty i zaktualizuj PageItem
+
                 _editedPages[_editorPage] = pdfBytes;
-        
+
                 StatusText.Text = "Zapisano · Powrót do organizacji";
                 NavOrganize.IsChecked = true;
             }
@@ -949,36 +924,33 @@ namespace Segmento
                 SaveEditorBtn.IsEnabled = true;
             }
         }
-        
+
         private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-            {
-                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-                e.Handled = true;
-            
-                double oldScale = EditorScale.ScaleX;
-                double delta = e.Delta > 0 ? 0.1 : -0.1;
-                double newScale = Math.Clamp(oldScale + delta, 0.2, 4.0);
-                if (Math.Abs(newScale - oldScale) < 0.001) return;
-            
-                // Pozycja kursora względem ScrollViewera i kontenera
-                Point mouseInScroll = e.GetPosition(EditorScrollViewer);
-                Point mouseInGrid  = e.GetPosition(EditorCanvasGrid);
-            
-                EditorScale.ScaleX = newScale;
-                EditorScale.ScaleY = newScale;
-            
-                // Korekcja offsetu tak aby punkt pod kursorem nie uciekał
-                double scaleRatio = newScale / oldScale;
-            
-                double newOffsetX = scaleRatio * (EditorScrollViewer.HorizontalOffset + mouseInScroll.X)
-                                    - mouseInScroll.X;
-                double newOffsetY = scaleRatio * (EditorScrollViewer.VerticalOffset + mouseInScroll.Y)
-                                    - mouseInScroll.Y;
-            
-                EditorScrollViewer.ScrollToHorizontalOffset(newOffsetX);
-                EditorScrollViewer.ScrollToVerticalOffset(newOffsetY);
-            }
-        
+        {
+            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+            e.Handled = true;
+
+            double oldScale = EditorScale.ScaleX;
+            double delta = e.Delta > 0 ? 0.1 : -0.1;
+            double newScale = Math.Clamp(oldScale + delta, 0.2, 4.0);
+            if (Math.Abs(newScale - oldScale) < 0.001) return;
+
+            Point mouseInScroll = e.GetPosition(EditorScrollViewer);
+
+            EditorScale.ScaleX = newScale;
+            EditorScale.ScaleY = newScale;
+
+            double scaleRatio = newScale / oldScale;
+
+            double newOffsetX = scaleRatio * (EditorScrollViewer.HorizontalOffset + mouseInScroll.X)
+                                - mouseInScroll.X;
+            double newOffsetY = scaleRatio * (EditorScrollViewer.VerticalOffset + mouseInScroll.Y)
+                                - mouseInScroll.Y;
+
+            EditorScrollViewer.ScrollToHorizontalOffset(newOffsetX);
+            EditorScrollViewer.ScrollToVerticalOffset(newOffsetY);
+        }
+
         #endregion
 
         #region Drag & Drop Organize
@@ -1114,12 +1086,12 @@ namespace Segmento
 
                 string outputPath = saveDialog.FileName;
                 var exportData = pagesToExport
-                .Select(p => (
-                    p.SourceBytes,
-                    p.OriginalPageNumber,
-                    _editedPages.TryGetValue(p, out var eb) ? eb : null
-                ))
-                .ToList();
+                    .Select(p => (
+                        p.SourceBytes,
+                        p.OriginalPageNumber,
+                        _editedPages.TryGetValue(p, out var eb) ? eb : (byte[]?)null
+                    ))
+                    .ToList();
                 int count = pagesToExport.Count;
 
                 await Task.Run(() => ExportMergedPdf(exportData, outputPath));
@@ -1140,11 +1112,7 @@ namespace Segmento
             }
         }
 
-        /// <summary>
-        /// Eksportuje strony z potencjalnie różnych źródłowych PDF do jednego pliku,
-        /// zachowując kolejność ustawioną przez użytkownika.
-        /// </summary>
-        private static void ExportMergedPdf(List<(byte[] SourceBytes, int PageNumber)> pages, string outputPath)
+        private static void ExportMergedPdf(List<(byte[] SourceBytes, int PageNumber, byte[]? EditedBytes)> pages, string outputPath)
         {
             try
             {
@@ -1153,32 +1121,32 @@ namespace Segmento
             }
             catch { }
 
-            // Fallback: iText7
             ExportMergedUsingIText(pages, outputPath);
         }
 
-        private static void ExportMergedUsingPdfSharp(List<(byte[] SourceBytes, int PageNumber)> pages, string outputPath)
+        private static void ExportMergedUsingPdfSharp(List<(byte[] SourceBytes, int PageNumber, byte[]? EditedBytes)> pages, string outputPath)
         {
             using var outputDocument = new PdfSharpPdfDocument();
-
-            // Cache otwartych dokumentów źródłowych (po referencji byte[])
             var cache = new Dictionary<byte[], PdfSharpPdfDocument>();
 
             try
             {
-                foreach (var (sourceBytes, pageNumber) in pages)
                 foreach (var (sourceBytes, pageNumber, editedBytes) in pages)
-            {
-                byte[] bytesToUse = editedBytes ?? sourceBytes;
-                if (!cache.TryGetValue(bytesToUse, out var srcDoc))
                 {
-                    var ms = new MemoryStream(bytesToUse);
-                    srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
-                    cache[bytesToUse] = srcDoc;
+                    byte[] bytesToUse = editedBytes ?? sourceBytes;
+                    int pageToUse = editedBytes != null ? 1 : pageNumber;
+
+                    if (!cache.TryGetValue(bytesToUse, out var srcDoc))
+                    {
+                        var ms = new MemoryStream(bytesToUse);
+                        srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                        cache[bytesToUse] = srcDoc;
+                    }
+
+                    if (pageToUse >= 1 && pageToUse <= srcDoc.PageCount)
+                        outputDocument.AddPage(srcDoc.Pages[pageToUse - 1]);
                 }
-                if (pageNumber >= 1 && pageNumber <= srcDoc.PageCount)
-                    outputDocument.AddPage(srcDoc.Pages[pageNumber - 1]);
-            }
+
                 outputDocument.Save(outputPath);
             }
             finally
@@ -1187,7 +1155,7 @@ namespace Segmento
             }
         }
 
-        private static void ExportMergedUsingIText(List<(byte[] SourceBytes, int PageNumber)> pages, string outputPath)
+        private static void ExportMergedUsingIText(List<(byte[] SourceBytes, int PageNumber, byte[]? EditedBytes)> pages, string outputPath)
         {
             using var writer = new ITextPdfWriter(outputPath);
             using var outputDoc = new ITextPdfDocument(writer);
@@ -1195,16 +1163,19 @@ namespace Segmento
             var cache = new Dictionary<byte[], ITextPdfDocument>();
             try
             {
-                foreach (var (sourceBytes, pageNumber) in pages)
+                foreach (var (sourceBytes, pageNumber, editedBytes) in pages)
                 {
-                    if (!cache.TryGetValue(sourceBytes, out var srcDoc))
+                    byte[] bytesToUse = editedBytes ?? sourceBytes;
+                    int pageToUse = editedBytes != null ? 1 : pageNumber;
+
+                    if (!cache.TryGetValue(bytesToUse, out var srcDoc))
                     {
-                        var reader = new ITextPdfReader(new MemoryStream(sourceBytes));
+                        var reader = new ITextPdfReader(new MemoryStream(bytesToUse));
                         reader.SetUnethicalReading(true);
                         srcDoc = new ITextPdfDocument(reader);
-                        cache[sourceBytes] = srcDoc;
+                        cache[bytesToUse] = srcDoc;
                     }
-                    srcDoc.CopyPagesTo(pageNumber, pageNumber, outputDoc);
+                    srcDoc.CopyPagesTo(pageToUse, pageToUse, outputDoc);
                 }
             }
             finally
