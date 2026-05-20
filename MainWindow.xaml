@@ -360,7 +360,6 @@
                                                 BorderBrush="#2e2e2e">
                                             <TextBlock FontSize="14"
                                                        FontWeight="SemiBold"
-                                                       LetterSpacing="0.3">
                                                 <TextBlock.Foreground>
                                                     <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
                                                         <GradientStop Color="#C43A00" Offset="0"/>
