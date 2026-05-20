@@ -847,12 +847,17 @@
                                 <Image x:Name="EditorPageImage"
                                        RenderOptions.BitmapScalingMode="HighQuality"
                                        Stretch="Uniform"
-                                       MaxWidth="900"/>
+                                       MaxWidth="850"
+                                       MaxHeight="700"/>
                                 <InkCanvas x:Name="EditorInkCanvas"
-                                           Background="Transparent"/>
-                                <Canvas x:Name="EditorOverlayCanvas"
-                                        Background="Transparent"
-                                        MouseLeftButtonDown="EditorCanvas_MouseDown"/>
+                                   Background="Transparent"
+                                   Width="{Binding ActualWidth, ElementName=EditorPageImage}"
+                                   Height="{Binding ActualHeight, ElementName=EditorPageImage}"/>
+                        <Canvas x:Name="EditorOverlayCanvas"
+                                Background="Transparent"
+                                Width="{Binding ActualWidth, ElementName=EditorPageImage}"
+                                Height="{Binding ActualHeight, ElementName=EditorPageImage}"
+                                MouseLeftButtonDown="EditorCanvas_MouseDown"/>
                             </Grid>
                         </ScrollViewer>
                 </Grid>
