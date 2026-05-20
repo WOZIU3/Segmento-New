@@ -879,25 +879,34 @@ namespace Segmento
             if (EditorInkCanvas.Strokes.Count > 0)
                 EditorInkCanvas.Strokes.RemoveAt(
                     EditorInkCanvas.Strokes.Count - 1);
-        }
-        private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-            e.Handled = true;
-        
-            double delta = e.Delta > 0 ? 0.1 : -0.1;
-            double newScale = Math.Clamp(EditorScale.ScaleX + delta, 0.2, 4.0);
-        
-            // Pozycja kursora względem skalowanego kontenera
-            Point mousePos = e.GetPosition(EditorCanvasGrid);
-        
-            // Przesuń punkt centralny transformacji do kursora
-            EditorScale.CenterX = mousePos.X;
-            EditorScale.CenterY = mousePos.Y;
-        
-            EditorScale.ScaleX = newScale;
-            EditorScale.ScaleY = newScale;
-        }
+        }private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+            {
+                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+                e.Handled = true;
+            
+                double oldScale = EditorScale.ScaleX;
+                double delta = e.Delta > 0 ? 0.1 : -0.1;
+                double newScale = Math.Clamp(oldScale + delta, 0.2, 4.0);
+                if (Math.Abs(newScale - oldScale) < 0.001) return;
+            
+                // Pozycja kursora względem ScrollViewera i kontenera
+                Point mouseInScroll = e.GetPosition(EditorScrollViewer);
+                Point mouseInGrid  = e.GetPosition(EditorCanvasGrid);
+            
+                EditorScale.ScaleX = newScale;
+                EditorScale.ScaleY = newScale;
+            
+                // Korekcja offsetu tak aby punkt pod kursorem nie uciekał
+                double scaleRatio = newScale / oldScale;
+            
+                double newOffsetX = scaleRatio * (EditorScrollViewer.HorizontalOffset + mouseInScroll.X)
+                                    - mouseInScroll.X;
+                double newOffsetY = scaleRatio * (EditorScrollViewer.VerticalOffset + mouseInScroll.Y)
+                                    - mouseInScroll.Y;
+            
+                EditorScrollViewer.ScrollToHorizontalOffset(newOffsetX);
+                EditorScrollViewer.ScrollToVerticalOffset(newOffsetY);
+            }
         
         #endregion
 
