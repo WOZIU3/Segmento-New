@@ -887,6 +887,14 @@ namespace Segmento
         
             double delta = e.Delta > 0 ? 0.1 : -0.1;
             double newScale = Math.Clamp(EditorScale.ScaleX + delta, 0.2, 4.0);
+        
+            // Pozycja kursora względem skalowanego kontenera
+            Point mousePos = e.GetPosition(EditorCanvasGrid);
+        
+            // Przesuń punkt centralny transformacji do kursora
+            EditorScale.CenterX = mousePos.X;
+            EditorScale.CenterY = mousePos.Y;
+        
             EditorScale.ScaleX = newScale;
             EditorScale.ScaleY = newScale;
         }
