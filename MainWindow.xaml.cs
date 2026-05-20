@@ -41,6 +41,7 @@ namespace Segmento
         private CancellationTokenSource? _thumbnailCts;
         private Point _dragStartPoint;
         private PageItem? _draggedItem;
+        private readonly Dictionary<PageItem, byte[]> _editedPages = new();
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int attrValue, int attrSize);
@@ -879,7 +880,78 @@ namespace Segmento
             if (EditorInkCanvas.Strokes.Count > 0)
                 EditorInkCanvas.Strokes.RemoveAt(
                     EditorInkCanvas.Strokes.Count - 1);
-        }private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+                    
+        private async void SaveEditorPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editorPage == null) return;
+        
+            try
+            {
+                SaveEditorBtn.IsEnabled = false;
+                StatusText.Text = "Zapisywanie zmian...";
+        
+                // Resetuj zoom przed renderowaniem
+                double prevScale = EditorScale.ScaleX;
+                EditorScale.ScaleX = 1;
+                EditorScale.ScaleY = 1;
+                EditorCanvasGrid.UpdateLayout();
+        
+                // Renderuj wszystkie warstwy do bitmapy
+                var renderBitmap = new RenderTargetBitmap(
+                    (int)EditorCanvasGrid.ActualWidth,
+                    (int)EditorCanvasGrid.ActualHeight,
+                    96, 96,
+                    PixelFormats.Pbgra32);
+                renderBitmap.Render(EditorCanvasGrid);
+        
+                // Przywróć zoom
+                EditorScale.ScaleX = prevScale;
+                EditorScale.ScaleY = prevScale;
+        
+                // Konwertuj bitmapę do PNG → PDF
+                byte[] pdfBytes = await Task.Run(() =>
+                {
+                    // PNG bytes
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
+                    using var pngStream = new MemoryStream();
+                    encoder.Save(pngStream);
+                    byte[] pngBytes = pngStream.ToArray();
+        
+                    // Tworzenie PDF z obrazem
+                    using var outStream = new MemoryStream();
+                    using var writer = new ITextPdfWriter(outStream);
+                    using var doc = new ITextPdfDocument(writer);
+        
+                    var imgData = iText.IO.Image.ImageDataFactory.Create(pngBytes);
+                    var pdfPage = doc.AddNewPage(
+                        new iText.Kernel.Geom.PageSize(imgData.GetWidth(), imgData.GetHeight()));
+                    var canvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(pdfPage);
+                    canvas.AddImageAt(imgData, 0, 0, false);
+                    doc.Close();
+        
+                    return outStream.ToArray();
+                });
+        
+                // Zapisz zedytowane bajty i zaktualizuj PageItem
+                _editedPages[_editorPage] = pdfBytes;
+        
+                StatusText.Text = "Zapisano · Powrót do organizacji";
+                NavOrganize.IsChecked = true;
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Błąd zapisu: {ex.Message}";
+            }
+            finally
+            {
+                SaveEditorBtn.IsEnabled = true;
+            }
+        }
+        
+        }
+        
+        private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
             {
                 if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
                 e.Handled = true;
@@ -1043,8 +1115,12 @@ namespace Segmento
 
                 string outputPath = saveDialog.FileName;
                 var exportData = pagesToExport
-                    .Select(p => (p.SourceBytes, p.OriginalPageNumber))
-                    .ToList();
+                .Select(p => (
+                    p.SourceBytes,
+                    p.OriginalPageNumber,
+                    _editedPages.TryGetValue(p, out var eb) ? eb : null
+                ))
+                .ToList();
                 int count = pagesToExport.Count;
 
                 await Task.Run(() => ExportMergedPdf(exportData, outputPath));
@@ -1092,18 +1168,18 @@ namespace Segmento
             try
             {
                 foreach (var (sourceBytes, pageNumber) in pages)
+                foreach (var (sourceBytes, pageNumber, editedBytes) in pages)
+            {
+                byte[] bytesToUse = editedBytes ?? sourceBytes;
+                if (!cache.TryGetValue(bytesToUse, out var srcDoc))
                 {
-                    if (!cache.TryGetValue(sourceBytes, out var srcDoc))
-                    {
-                        var ms = new MemoryStream(sourceBytes);
-                        srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
-                        cache[sourceBytes] = srcDoc;
-                    }
-
-                    if (pageNumber >= 1 && pageNumber <= srcDoc.PageCount)
-                        outputDocument.AddPage(srcDoc.Pages[pageNumber - 1]);
+                    var ms = new MemoryStream(bytesToUse);
+                    srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                    cache[bytesToUse] = srcDoc;
                 }
-
+                if (pageNumber >= 1 && pageNumber <= srcDoc.PageCount)
+                    outputDocument.AddPage(srcDoc.Pages[pageNumber - 1]);
+            }
                 outputDocument.Save(outputPath);
             }
             finally
