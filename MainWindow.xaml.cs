@@ -678,7 +678,6 @@ namespace Segmento
                 : _pages.Where(p => p.IsSelected).ToList();
 
             EditorPageCombo.ItemsSource = source;
-            EditorPageCombo.DisplayMemberPath = "DisplayName";
 
             if (source.Count > 0)
                 EditorPageCombo.SelectedIndex = 0;
@@ -748,20 +747,24 @@ namespace Segmento
             switch (_currentTool)
             {
                 case EditorTool.Eraser:
+                    // Biała gumka — rysuje białe kreski maskujące treść
                     EditorInkCanvas.DefaultDrawingAttributes = new System.Windows.Ink.DrawingAttributes
                     {
                         Color = Colors.White,
-                        Width = 20,
-                        Height = 20,
-                        StylusTip = System.Windows.Ink.StylusTip.Rectangle
+                        Width = 24,
+                        Height = 24,
+                        StylusTip = System.Windows.Ink.StylusTip.Rectangle,
+                        IsHighlighter = false
                     };
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
                     EditorInkCanvas.IsHitTestVisible = true;
+                    EditorInkCanvas.Cursor = Cursors.Cross;
                     break;
 
                 default:
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.None;
                     EditorInkCanvas.IsHitTestVisible = false;
+                    EditorInkCanvas.Cursor = Cursors.Arrow;
                     break;
             }
         }
@@ -776,14 +779,51 @@ namespace Segmento
 
             var tb = new TextBox
             {
-                Text = "Tekst",
+                Text = "Wpisz tekst...",
                 FontSize = 16,
                 Foreground = Brushes.Black,
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(1),
-                BorderBrush = Brushes.DodgerBlue,
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
                 MinWidth = 80,
-                AcceptsReturn = true
+                AcceptsReturn = true,
+                Cursor = Cursors.IBeam
+            };
+
+            // Przeciąganie pola tekstowego za pomocą Ctrl+drag lub drag na obramowaniu
+            Point dragStart = default;
+            bool isDragging = false;
+
+            tb.PreviewMouseLeftButtonDown += (s, ev) =>
+            {
+                if (ev.GetPosition(tb).Y < 20) // górna krawędź = drag handle
+                {
+                    isDragging = true;
+                    dragStart = ev.GetPosition(EditorOverlayCanvas);
+                    tb.CaptureMouse();
+                    ev.Handled = true;
+                }
+            };
+            tb.PreviewMouseMove += (s, ev) =>
+            {
+                if (!isDragging) return;
+                Point cur = ev.GetPosition(EditorOverlayCanvas);
+                Canvas.SetLeft(tb, Canvas.GetLeft(tb) + (cur.X - dragStart.X));
+                Canvas.SetTop(tb, Canvas.GetTop(tb) + (cur.Y - dragStart.Y));
+                dragStart = cur;
+            };
+            tb.PreviewMouseLeftButtonUp += (s, ev) =>
+            {
+                if (!isDragging) return;
+                isDragging = false;
+                tb.ReleaseMouseCapture();
+            };
+
+            // Usunięcie po wciśnięciu Escape
+            tb.KeyDown += (s, ev) =>
+            {
+                if (ev.Key == Key.Escape)
+                    EditorOverlayCanvas.Children.Remove(tb);
             };
 
             Canvas.SetLeft(tb, pos.X);
@@ -928,21 +968,25 @@ namespace Segmento
                 encoder.Save(pngStream);
                 byte[] pngBytes = pngStream.ToArray();
         
-                // Tworzenie PDF w tle (tylko byte[] — brak obiektów UI)
+                // Tworzenie PDF w tle — PdfSharp, tylko byte[], zero obiektów UI
                 byte[] pdfBytes = await Task.Run(() =>
                 {
                     using var outStream = new MemoryStream();
-                    using var writer = new ITextPdfWriter(outStream);
-                    using var doc = new ITextPdfDocument(writer);
-        
-                    var imgData = iText.IO.Image.ImageDataFactory.Create(pngBytes);
-                    var pageSize = new iText.Kernel.Geom.PageSize(
-                        imgData.GetWidth(), imgData.GetHeight());
-                    doc.AddNewPage(pageSize);
-                    var pdfCanvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(doc.GetPage(1));
-                    pdfCanvas.AddImageAt(imgData, 0, 0, false);
-                    doc.Close();
-        
+                    using var pdfDoc = new PdfSharpPdfDocument();
+                    var pdfPage = pdfDoc.AddPage();
+
+                    // Piksele (96 dpi) → punkty PDF (72 dpi)
+                    double widthPt  = renderW * 72.0 / 96.0;
+                    double heightPt = renderH * 72.0 / 96.0;
+                    pdfPage.Width  = PdfSharp.Drawing.XUnit.FromPoint(widthPt);
+                    pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
+
+                    using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
+                    using var imgStream = new MemoryStream(pngBytes);
+                    using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
+                    gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
+
+                    pdfDoc.Save(outStream, false);
                     return outStream.ToArray();
                 });
         
