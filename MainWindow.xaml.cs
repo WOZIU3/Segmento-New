@@ -731,25 +731,10 @@ namespace Segmento
             if (sender is not RadioButton rb) return;
             string tag = rb.Tag as string ?? string.Empty;
 
-            EditorTool clicked = tag switch
-            {
-                "Text"   => EditorTool.Text,
-                "Image"  => EditorTool.Image,
-                "Eraser" => EditorTool.Eraser,
-                _        => EditorTool.None
-            };
-
-            // Ponowne kliknięcie aktywnego narzędzia = deaktywacja
-            if (_currentTool == clicked)
-            {
-                _currentTool = EditorTool.None;
-                rb.IsChecked = false;
-                ApplyToolToInkCanvas();
-                EditorScrollViewer.Cursor = Cursors.SizeAll;
-                return;
-            }
-
-            _currentTool = clicked;
+            if (tag == "Text")        _currentTool = EditorTool.Text;
+            else if (tag == "Image")  _currentTool = EditorTool.Image;
+            else if (tag == "Eraser") _currentTool = EditorTool.Eraser;
+            else                      _currentTool = EditorTool.None;
 
             ApplyToolToInkCanvas();
 
@@ -1061,10 +1046,9 @@ namespace Segmento
                     Content = $"{s}",
                     Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
                     Foreground = Brushes.White, Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand,
-                    Focusable = false
+                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
                 };
-                btn.Click += (_, _) => tb.FontSize = s;
+                btn.Click += (_, _) => { tb.FontSize = s; tb.Focus(); };
                 sizeRow.Children.Add(btn);
             }
 
@@ -1091,8 +1075,7 @@ namespace Segmento
                     Margin          = new Thickness(2,0,2,0),
                     Cursor          = Cursors.Hand
                 };
-                swatch.Focusable = false;
-                swatch.MouseLeftButtonDown += (_, _) => tb.Foreground = b;
+                swatch.MouseLeftButtonDown += (_, _) => { tb.Foreground = b; tb.Focus(); };
                 colorRow.Children.Add(swatch);
             }
 
@@ -1102,8 +1085,7 @@ namespace Segmento
                 Content = "✕", Padding = new Thickness(7,2,7,2), Margin = new Thickness(6,0,0,0),
                 Foreground = new SolidColorBrush(Color.FromRgb(255,80,80)),
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0),
-                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand,
-                Focusable = false
+                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand
             };
             delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
 
@@ -1169,39 +1151,56 @@ namespace Segmento
 
         private void PlaceImageOnCanvas(BitmapSource src)
         {
-            double initW = Math.Min(src.PixelWidth,  400);
+            double initW  = Math.Min(src.PixelWidth, 400);
             double aspect = (double)src.PixelHeight / src.PixelWidth;
-            double initH = initW * aspect;
+            double initH  = initW * aspect;
 
-            // Kontener: Image + uchwyt resize w prawym dolnym rogu
-            var img = new Image { Source = src, Stretch = Stretch.Fill };
+            // ── Image (IsHitTestVisible=false → eventy idą do kontenera) ──
+            var img = new Image
+            {
+                Source = src, Stretch = Stretch.Fill,
+                IsHitTestVisible = false
+            };
 
+            // ── Resize handle (prawy dolny róg) ────────────────────────────
             var handle = new System.Windows.Shapes.Rectangle
             {
-                Width  = 14, Height = 14,
-                Fill   = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+                Width = 14, Height = 14,
+                Fill  = new SolidColorBrush(Color.FromRgb(74, 144, 226)),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment   = VerticalAlignment.Bottom,
                 Cursor = Cursors.SizeNWSE,
                 Margin = new Thickness(0, 0, -7, -7)
             };
 
+            // ── Kontener ───────────────────────────────────────────────────
             var container = new Grid
             {
-                Width  = initW,
-                Height = initH,
-                Cursor = Cursors.SizeAll
+                Width      = initW,
+                Height     = initH,
+                Cursor     = Cursors.SizeAll,
+                Background = Brushes.Transparent, // kluczowe: hit-test działa
+                ClipToBounds = false
             };
             container.Children.Add(img);
             container.Children.Add(handle);
 
-            // --- Przeciąganie kontenera ---
+            // ── Popup toolbar (opacity + delete) ───────────────────────────
+            var toolbar = BuildImageToolbar(container, img);
+            toolbar.PlacementTarget = container;
+
+            bool isSelected = false;
+            void ShowToolbar() { isSelected = true;  toolbar.IsOpen = true;  }
+            void HideToolbar() { isSelected = false; toolbar.IsOpen = false; }
+
+            // ── Przeciąganie ───────────────────────────────────────────────
             Point dragStart = default;
             bool  isDragging = false;
 
             container.MouseLeftButtonDown += (s, ev) =>
             {
-                if (ev.OriginalSource == handle) return;
+                if (ev.OriginalSource is System.Windows.Shapes.Rectangle) return;
+                ShowToolbar();
                 isDragging = true;
                 dragStart  = ev.GetPosition(EditorOverlayCanvas);
                 container.CaptureMouse();
@@ -1222,7 +1221,7 @@ namespace Segmento
                 container.ReleaseMouseCapture();
             };
 
-            // --- Skalowanie za uchwyt ---
+            // ── Skalowanie za uchwyt ───────────────────────────────────────
             Point resizeStart = default;
             bool  isResizing  = false;
             double startW = initW, startH = initH;
@@ -1240,10 +1239,8 @@ namespace Segmento
             {
                 if (!isResizing) return;
                 Point cur = ev.GetPosition(EditorOverlayCanvas);
-                double newW = Math.Max(40, startW + cur.X - resizeStart.X);
-                double newH = Math.Max(40, startH + cur.Y - resizeStart.Y);
-                container.Width  = newW;
-                container.Height = newH;
+                container.Width  = Math.Max(40, startW + cur.X - resizeStart.X);
+                container.Height = Math.Max(40, startH + cur.Y - resizeStart.Y);
             };
             handle.MouseLeftButtonUp += (s, ev) =>
             {
@@ -1252,10 +1249,98 @@ namespace Segmento
                 handle.ReleaseMouseCapture();
             };
 
+            // ── Klik poza kontenerem = chowaj toolbar ─────────────────────
+            EditorOverlayCanvas.MouseLeftButtonDown += (s, ev) =>
+            {
+                if (!isSelected) return;
+                if (ev.OriginalSource != EditorOverlayCanvas) return;
+                HideToolbar();
+            };
+
             Canvas.SetLeft(container, 60);
             Canvas.SetTop (container, 60);
             EditorOverlayCanvas.Children.Add(container);
-            StatusText.Text = "Obraz dodany · przeciągnij aby przesunąć · prawy-dolny róg = skaluj";
+            StatusText.Text = "Obraz dodany · przeciągnij = przesuń · róg = skaluj · kliknij = opcje";
+        }
+
+        private Popup BuildImageToolbar(Grid container, Image img)
+        {
+            // ── Przyciski przezroczystości ──────────────────────────────────
+            var opacityRow = new StackPanel { Orientation = Orientation.Horizontal };
+            foreach (var (label, op) in new (string, double)[]
+            {
+                ("25%", 0.25), ("50%", 0.50), ("75%", 0.75), ("100%", 1.0)
+            })
+            {
+                double opacity = op;
+                var btn = new Button
+                {
+                    Content = label,
+                    Focusable = false,
+                    Padding = new Thickness(6, 2, 6, 2),
+                    Margin  = new Thickness(1, 0, 1, 0),
+                    Foreground = Brushes.White,
+                    Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    FontSize = 11, Cursor = Cursors.Hand
+                };
+                btn.Click += (_, _) => img.Opacity = opacity;
+                opacityRow.Children.Add(btn);
+            }
+
+            // ── Przycisk usuń ───────────────────────────────────────────────
+            var delBtn = new Button
+            {
+                Content = "✕",
+                Focusable = false,
+                Padding = new Thickness(7, 2, 7, 2),
+                Margin  = new Thickness(8, 0, 0, 0),
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 80, 80)),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                FontSize = 12, FontWeight = FontWeights.Bold,
+                Cursor = Cursors.Hand
+            };
+            delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
+
+            Border Sep() => new Border
+            {
+                Width = 1, Margin = new Thickness(5, 3, 5, 3),
+                Background = new SolidColorBrush(Color.FromRgb(70, 70, 70))
+            };
+
+            var toolStack = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            toolStack.Children.Add(new TextBlock
+            {
+                Text = "Przezroczystość",
+                Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 160)),
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11, Margin = new Thickness(4, 0, 4, 0)
+            });
+            toolStack.Children.Add(opacityRow);
+            toolStack.Children.Add(Sep());
+            toolStack.Children.Add(delBtn);
+
+            var toolBorder = new Border
+            {
+                Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                CornerRadius    = new CornerRadius(6),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(51, 51, 51)),
+                BorderThickness = new Thickness(1),
+                Padding         = new Thickness(4, 5, 4, 5),
+                Child           = toolStack
+            };
+
+            return new Popup
+            {
+                Placement = PlacementMode.Bottom, VerticalOffset = 6,
+                AllowsTransparency = true, StaysOpen = true,
+                IsOpen = false, Child = toolBorder
+            };
         }
 
         private void PasteImageFromClipboard()
@@ -1362,10 +1447,7 @@ namespace Segmento
                     pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
 
                     using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
-                    // Writable MemoryStream — PdfSharp wymaga publicznego bufora
-                    var imgStream = new MemoryStream();
-                    imgStream.Write(pngBytes, 0, pngBytes.Length);
-                    imgStream.Position = 0;
+                    using var imgStream = new MemoryStream(pngBytes);
                     using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
                     gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
 
