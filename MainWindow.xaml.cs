@@ -731,10 +731,25 @@ namespace Segmento
             if (sender is not RadioButton rb) return;
             string tag = rb.Tag as string ?? string.Empty;
 
-            if (tag == "Text")        _currentTool = EditorTool.Text;
-            else if (tag == "Image")  _currentTool = EditorTool.Image;
-            else if (tag == "Eraser") _currentTool = EditorTool.Eraser;
-            else                      _currentTool = EditorTool.None;
+            EditorTool clicked = tag switch
+            {
+                "Text"   => EditorTool.Text,
+                "Image"  => EditorTool.Image,
+                "Eraser" => EditorTool.Eraser,
+                _        => EditorTool.None
+            };
+
+            // Ponowne kliknięcie aktywnego narzędzia = deaktywacja
+            if (_currentTool == clicked)
+            {
+                _currentTool = EditorTool.None;
+                rb.IsChecked = false;
+                ApplyToolToInkCanvas();
+                EditorScrollViewer.Cursor = Cursors.SizeAll;
+                return;
+            }
+
+            _currentTool = clicked;
 
             ApplyToolToInkCanvas();
 
