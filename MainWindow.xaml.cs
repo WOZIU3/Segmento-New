@@ -48,7 +48,7 @@ namespace Segmento
         // --- Editor tool state ---
         private bool _isDrawingTextRect;
         private Point _textRectStart;
-        private Rectangle? _textRubberBand;
+        private System.Windows.Shapes.Rectangle? _textRubberBand;
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int attrValue, int attrSize);
@@ -791,7 +791,7 @@ namespace Segmento
             _textRectStart = e.GetPosition(EditorOverlayCanvas);
 
             // Tymczasowa ramka wyboru obszaru
-            _textRubberBand = new Rectangle
+            _textRubberBand = new System.Windows.Shapes.Rectangle
             {
                 Stroke = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
                 StrokeThickness = 1.5,
@@ -843,116 +843,288 @@ namespace Segmento
 
         private void AddTextBox(double left, double top, double w, double h)
         {
+            const double H  = 8;  // uchwyt: średnica
+            const double HH = 4;  // uchwyt: połowa
+
+            // ── TextBox ────────────────────────────────────────────────────
             var tb = new TextBox
             {
-                Width            = w,
-                Height           = h,
-                FontSize         = 16,
-                Foreground       = Brushes.Black,
-                Background       = Brushes.Transparent,
-                BorderBrush      = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
-                BorderThickness  = new Thickness(1.5),
-                TextWrapping     = TextWrapping.Wrap,
-                AcceptsReturn    = true,
+                Background      = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                TextWrapping    = TextWrapping.Wrap,
+                AcceptsReturn   = true,
+                FontSize        = 14,
+                Foreground      = Brushes.White,
+                FontFamily      = new FontFamily("Segoe UI Variable"),
+                Padding         = new Thickness(2),
+                Margin          = new Thickness(HH),
                 VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-                Cursor           = Cursors.IBeam
+                Cursor          = Cursors.IBeam
             };
 
-            // ---- ContextMenu: rozmiar + kolor ----
-            var cm = new ContextMenu();
-            var sizeHeader = new MenuItem { Header = "Rozmiar czcionki", IsEnabled = false };
-            cm.Items.Add(sizeHeader);
-            foreach (int sz in new[] { 10, 12, 14, 16, 20, 24, 32, 48 })
+            // ── Bounding box (ramka #4A90E2) ───────────────────────────────
+            var bbox = new Border
             {
-                int captured = sz;
-                var mi = new MenuItem { Header = $"{sz} pt" };
-                mi.Click += (_, _) => tb.FontSize = captured;
-                cm.Items.Add(mi);
-            }
-            cm.Items.Add(new Separator());
-            var colorHeader = new MenuItem { Header = "Kolor tekstu", IsEnabled = false };
-            cm.Items.Add(colorHeader);
-            foreach (var (name, brush) in new (string, Brush)[]
-            {
-                ("Czarny",    Brushes.Black),
-                ("Biały",     Brushes.White),
-                ("Czerwony",  Brushes.Red),
-                ("Niebieski", Brushes.DodgerBlue),
-                ("Zielony",   Brushes.Green),
-                ("Żółty",     Brushes.Gold)
-            })
-            {
-                var b = brush;
-                var mi = new MenuItem { Header = name };
-                mi.Click += (_, _) => tb.Foreground = b;
-                cm.Items.Add(mi);
-            }
-            tb.ContextMenu = cm;
-
-            // ---- Drag: przeciąganie całego TextBoxa ----
-            Point dragStart = default;
-            bool  isDragging = false;
-
-            tb.PreviewMouseRightButtonDown += (s, ev) =>
-            {
-                ev.Handled = false; // pozwól otworzyć ContextMenu
+                BorderBrush      = new SolidColorBrush(Color.FromRgb(74, 144, 226)),
+                BorderThickness  = new Thickness(1.5),
+                Background       = Brushes.Transparent,
+                Margin           = new Thickness(HH),
+                IsHitTestVisible = false
             };
 
-            tb.PreviewMouseLeftButtonDown += (s, ev) =>
+            // ── Warstwa uchwytów ───────────────────────────────────────────
+            var handleLayer = new Canvas { ClipToBounds = false };
+
+            // ── Kontener Grid ──────────────────────────────────────────────
+            var container = new Grid { Width = w, Height = h, ClipToBounds = false };
+            container.Children.Add(tb);
+            container.Children.Add(bbox);
+            container.Children.Add(handleLayer);
+
+            // ── 8 uchwytów resize ──────────────────────────────────────────
+            Cursor[] hCursors = {
+                Cursors.SizeNWSE, Cursors.SizeNS,   Cursors.SizeNESW,
+                Cursors.SizeWE,                      Cursors.SizeWE,
+                Cursors.SizeNESW, Cursors.SizeNS,   Cursors.SizeNWSE
+            };
+            var handles = new Ellipse[8];
+            for (int i = 0; i < 8; i++)
             {
-                // drag = klik poza obszarem wpisywania (np. brzeg)
-                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
+                handles[i] = new Ellipse
                 {
-                    isDragging  = true;
-                    dragStart   = ev.GetPosition(EditorOverlayCanvas);
-                    tb.CaptureMouse();
-                    ev.Handled = true;
-                }
-            };
-            tb.PreviewMouseMove += (s, ev) =>
-            {
-                if (!isDragging) return;
-                Point cur = ev.GetPosition(EditorOverlayCanvas);
-                Canvas.SetLeft(tb, Canvas.GetLeft(tb) + cur.X - dragStart.X);
-                Canvas.SetTop (tb, Canvas.GetTop(tb)  + cur.Y - dragStart.Y);
-                dragStart = cur;
-            };
-            tb.PreviewMouseLeftButtonUp += (s, ev) =>
-            {
-                if (!isDragging) return;
-                isDragging = false;
-                tb.ReleaseMouseCapture();
-            };
+                    Width = H, Height = H,
+                    Fill   = new SolidColorBrush(Color.FromRgb(74, 144, 226)),
+                    Stroke = Brushes.White, StrokeThickness = 1,
+                    Cursor = hCursors[i], Tag = i
+                };
+                handleLayer.Children.Add(handles[i]);
+            }
 
-            // ---- LostFocus: ukryj ramkę, dezaktywuj narzędzie ----
-            tb.LostFocus += (s, ev) =>
+            void LayoutHandles()
             {
-                tb.BorderThickness = new Thickness(0);
-                if (_currentTool == EditorTool.Text)
+                double cw = container.Width, ch = container.Height;
+                (double x, double y)[] pts = {
+                    (0,    0),    (cw/2, 0),    (cw,   0),
+                    (0,    ch/2),               (cw,   ch/2),
+                    (0,    ch),   (cw/2, ch),   (cw,   ch)
+                };
+                for (int i = 0; i < 8; i++)
                 {
-                    _currentTool = EditorTool.None;
-                    ToolTextBtn.IsChecked = false;
-                    ApplyToolToInkCanvas();
-                    EditorScrollViewer.Cursor = Cursors.SizeAll;
+                    Canvas.SetLeft(handles[i], pts[i].x - HH);
+                    Canvas.SetTop (handles[i], pts[i].y - HH);
                 }
+            }
+            LayoutHandles();
+
+            // ── Popup toolbar ──────────────────────────────────────────────
+            var popup = BuildTextToolbar(tb, container);
+            popup.PlacementTarget = container;
+
+            // ── Aktywacja / dezaktywacja ────────────────────────────────────
+            bool hasFocus = false;
+            void Activate()
+            {
+                hasFocus = true;
+                bbox.Visibility = handleLayer.Visibility = Visibility.Visible;
+                popup.IsOpen = true;
+            }
+            void Deactivate()
+            {
+                hasFocus = false;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (hasFocus) return;
+                    bbox.Visibility = handleLayer.Visibility = Visibility.Collapsed;
+                    popup.IsOpen = false;
+                }), System.Windows.Threading.DispatcherPriority.Input);
+            }
+
+            tb.GotFocus  += (_, _) => Activate();
+            tb.LostFocus += (_, _) => Deactivate();
+
+            container.MouseLeftButtonDown += (s, ev) =>
+            {
+                if (ev.OriginalSource is Ellipse) return;
+                if (!hasFocus) { tb.Focus(); ev.Handled = true; }
             };
 
-            // ---- Escape: usuń pole ----
             tb.KeyDown += (s, ev) =>
             {
-                if (ev.Key == Key.Escape)
-                    EditorOverlayCanvas.Children.Remove(tb);
+                if (ev.Key == Key.Escape) EditorOverlayCanvas.Focus();
             };
 
-            Canvas.SetLeft(tb, left);
-            Canvas.SetTop (tb, top);
-            EditorOverlayCanvas.Children.Add(tb);
-            tb.Focus();
+            // ── Przenoszenie (Alt+drag) ─────────────────────────────────────
+            Point moveStart = default;
+            bool  isMoving  = false;
+            tb.PreviewMouseLeftButtonDown += (s, ev) =>
+            {
+                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) return;
+                isMoving = true;
+                moveStart = ev.GetPosition(EditorOverlayCanvas);
+                container.CaptureMouse();
+                ev.Handled = true;
+            };
+            container.MouseMove += (s, ev) =>
+            {
+                if (!isMoving) return;
+                var cur = ev.GetPosition(EditorOverlayCanvas);
+                Canvas.SetLeft(container, Canvas.GetLeft(container) + cur.X - moveStart.X);
+                Canvas.SetTop (container, Canvas.GetTop(container)  + cur.Y - moveStart.Y);
+                moveStart = cur;
+            };
+            container.MouseLeftButtonUp += (s, ev) =>
+            {
+                if (!isMoving) return;
+                isMoving = false;
+                container.ReleaseMouseCapture();
+            };
+
+            // ── Resize uchwytów ─────────────────────────────────────────────
+            for (int i = 0; i < 8; i++)
+            {
+                int mode = i;
+                Point rs = default;
+                bool  resizing = false;
+                double rsW = 0, rsH = 0, rsL = 0, rsT = 0;
+
+                handles[i].MouseLeftButtonDown += (s, ev) =>
+                {
+                    resizing = true;
+                    rs  = ev.GetPosition(EditorOverlayCanvas);
+                    rsW = container.Width;  rsH = container.Height;
+                    rsL = Canvas.GetLeft(container); rsT = Canvas.GetTop(container);
+                    ((Ellipse)s).CaptureMouse();
+                    ev.Handled = true;
+                };
+                handles[i].MouseMove += (s, ev) =>
+                {
+                    if (!resizing) return;
+                    var cur = ev.GetPosition(EditorOverlayCanvas);
+                    double dx = cur.X - rs.X, dy = cur.Y - rs.Y;
+                    double nW = rsW, nH = rsH, nL = rsL, nT = rsT;
+                    // 0=TL,1=TC,2=TR,3=ML,4=MR,5=BL,6=BC,7=BR
+                    switch (mode)
+                    {
+                        case 0: nW=rsW-dx; nH=rsH-dy; nL=rsL+dx; nT=rsT+dy; break;
+                        case 1: nH=rsH-dy; nT=rsT+dy; break;
+                        case 2: nW=rsW+dx; nH=rsH-dy; nT=rsT+dy; break;
+                        case 3: nW=rsW-dx; nL=rsL+dx; break;
+                        case 4: nW=rsW+dx; break;
+                        case 5: nW=rsW-dx; nH=rsH+dy; nL=rsL+dx; break;
+                        case 6: nH=rsH+dy; break;
+                        case 7: nW=rsW+dx; nH=rsH+dy; break;
+                    }
+                    if (nW < 60) { if (mode==0||mode==3||mode==5) nL=rsL+rsW-60; nW=60; }
+                    if (nH < 30) { if (mode==0||mode==1||mode==2) nT=rsT+rsH-30; nH=30; }
+                    container.Width = nW; container.Height = nH;
+                    Canvas.SetLeft(container, nL); Canvas.SetTop(container, nT);
+                    LayoutHandles();
+                };
+                handles[i].MouseLeftButtonUp += (s, ev) =>
+                {
+                    if (!resizing) return;
+                    resizing = false;
+                    ((Ellipse)s).ReleaseMouseCapture();
+                };
+            }
+
+            Canvas.SetLeft(container, left);
+            Canvas.SetTop (container, top);
+            EditorOverlayCanvas.Children.Add(container);
+            container.Loaded += (_, _) => tb.Focus();
         }
 
-        // ================================================================
-        // NARZĘDZIE: OBRAZ
-        // ================================================================
+        private Popup BuildTextToolbar(TextBox tb, Grid container)
+        {
+            // ── Przyciski rozmiaru czcionki ────────────────────────────────
+            var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
+            foreach (int sz in new[] { 10, 12, 14, 18, 24, 32, 48 })
+            {
+                int s = sz;
+                var btn = new Button
+                {
+                    Content = $"{s}",
+                    Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
+                    Foreground = Brushes.White, Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
+                };
+                btn.Click += (_, _) => { tb.FontSize = s; tb.Focus(); };
+                sizeRow.Children.Add(btn);
+            }
+
+            // ── Kolorowe próbki ────────────────────────────────────────────
+            var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6,0,0,0) };
+            foreach (var (col, brush) in new (Color, Brush)[]
+            {
+                (Colors.White,   Brushes.White),
+                (Colors.Black,   Brushes.Black),
+                (Colors.Red,     Brushes.Red),
+                (Color.FromRgb(30,144,255), Brushes.DodgerBlue),
+                (Colors.Gold,    Brushes.Gold),
+                (Colors.LimeGreen, Brushes.LimeGreen)
+            })
+            {
+                var b = brush; var c = col;
+                var swatch = new Border
+                {
+                    Width = 14, Height = 14,
+                    Background      = new SolidColorBrush(c),
+                    BorderBrush     = new SolidColorBrush(Color.FromRgb(80,80,80)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius    = new CornerRadius(3),
+                    Margin          = new Thickness(2,0,2,0),
+                    Cursor          = Cursors.Hand
+                };
+                swatch.MouseLeftButtonDown += (_, _) => { tb.Foreground = b; tb.Focus(); };
+                colorRow.Children.Add(swatch);
+            }
+
+            // ── Przycisk usuń ──────────────────────────────────────────────
+            var delBtn = new Button
+            {
+                Content = "✕", Padding = new Thickness(7,2,7,2), Margin = new Thickness(6,0,0,0),
+                Foreground = new SolidColorBrush(Color.FromRgb(255,80,80)),
+                Background = Brushes.Transparent, BorderThickness = new Thickness(0),
+                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand
+            };
+            delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
+
+            Border Sep() => new Border
+            {
+                Width = 1, Margin = new Thickness(5,3,5,3),
+                Background = new SolidColorBrush(Color.FromRgb(70,70,70))
+            };
+
+            var toolStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            toolStack.Children.Add(new TextBlock
+            {
+                Text = "A", Foreground = new SolidColorBrush(Color.FromRgb(160,160,160)),
+                VerticalAlignment = VerticalAlignment.Center, FontSize = 11, Margin = new Thickness(4,0,2,0)
+            });
+            toolStack.Children.Add(sizeRow);
+            toolStack.Children.Add(Sep());
+            toolStack.Children.Add(colorRow);
+            toolStack.Children.Add(Sep());
+            toolStack.Children.Add(delBtn);
+
+            var toolBorder = new Border
+            {
+                Background      = new SolidColorBrush(Color.FromRgb(30,30,30)),
+                CornerRadius    = new CornerRadius(6),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(51,51,51)),
+                BorderThickness = new Thickness(1),
+                Padding         = new Thickness(4,5,4,5),
+                Child           = toolStack
+            };
+
+            return new Popup
+            {
+                Placement = PlacementMode.Bottom, VerticalOffset = 6,
+                AllowsTransparency = true, StaysOpen = true,
+                IsOpen = false, Child = toolBorder
+            };
+        }
+
 
         private void OpenImageFromDialog()
         {
@@ -986,7 +1158,7 @@ namespace Segmento
             // Kontener: Image + uchwyt resize w prawym dolnym rogu
             var img = new Image { Source = src, Stretch = Stretch.Fill };
 
-            var handle = new Rectangle
+            var handle = new System.Windows.Shapes.Rectangle
             {
                 Width  = 14, Height = 14,
                 Fill   = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
