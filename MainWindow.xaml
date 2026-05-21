@@ -1180,7 +1180,9 @@
                                 Background="Transparent"
                                 Width="{Binding ActualWidth, ElementName=EditorPageImage}"
                                 Height="{Binding ActualHeight, ElementName=EditorPageImage}"
-                                MouseLeftButtonDown="EditorCanvas_MouseDown"/>
+                                MouseLeftButtonDown="EditorCanvas_MouseDown"
+                                MouseMove="EditorCanvas_MouseMove"
+                                MouseLeftButtonUp="EditorCanvas_MouseUp"/>
                             </Grid>
                         </ScrollViewer>
                 </Grid>
