@@ -1046,9 +1046,10 @@ namespace Segmento
                     Content = $"{s}",
                     Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
                     Foreground = Brushes.White, Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
+                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand,
+                    Focusable = false
                 };
-                btn.Click += (_, _) => { tb.FontSize = s; tb.Focus(); };
+                btn.Click += (_, _) => tb.FontSize = s;
                 sizeRow.Children.Add(btn);
             }
 
@@ -1075,7 +1076,8 @@ namespace Segmento
                     Margin          = new Thickness(2,0,2,0),
                     Cursor          = Cursors.Hand
                 };
-                swatch.MouseLeftButtonDown += (_, _) => { tb.Foreground = b; tb.Focus(); };
+                swatch.Focusable = false;
+                swatch.MouseLeftButtonDown += (_, _) => tb.Foreground = b;
                 colorRow.Children.Add(swatch);
             }
 
@@ -1085,7 +1087,8 @@ namespace Segmento
                 Content = "✕", Padding = new Thickness(7,2,7,2), Margin = new Thickness(6,0,0,0),
                 Foreground = new SolidColorBrush(Color.FromRgb(255,80,80)),
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0),
-                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand
+                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand,
+                Focusable = false
             };
             delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
 
