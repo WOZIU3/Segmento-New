@@ -44,6 +44,10 @@ namespace Segmento
         private readonly Dictionary<PageItem, byte[]> _editedPages = new();
         private bool _isPanning;
         private Point _panStartPoint;
+        // --- Editor tool state ---
+        private bool _isDrawingTextRect;
+        private Point _textRectStart;
+        private Rectangle? _textRubberBand;
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int attrValue, int attrSize);
@@ -724,7 +728,6 @@ namespace Segmento
         private void Tool_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not RadioButton rb) return;
-
             string tag = rb.Tag as string ?? string.Empty;
 
             if (tag == "Text")        _currentTool = EditorTool.Text;
@@ -735,11 +738,16 @@ namespace Segmento
             ApplyToolToInkCanvas();
 
             if (_currentTool == EditorTool.Image)
-                PasteImageFromClipboard();
+            {
+                OpenImageFromDialog();
+                // dezaktywuj przycisk — narzędzie jest jednorazowe
+                ToolImageBtn.IsChecked = false;
+                _currentTool = EditorTool.None;
+                ApplyToolToInkCanvas();
+            }
 
             EditorScrollViewer.Cursor = _currentTool == EditorTool.None
-                ? Cursors.SizeAll
-                : Cursors.Arrow;
+                ? Cursors.SizeAll : Cursors.Arrow;
         }
 
         private void ApplyToolToInkCanvas()
@@ -769,37 +777,133 @@ namespace Segmento
             }
         }
 
-        // --- Tekst ---
+        // ================================================================
+        // NARZĘDZIE: TEKST
+        // ================================================================
 
         private void EditorCanvas_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (_currentTool != EditorTool.Text) return;
+            if (e.LeftButton != MouseButtonState.Pressed) return;
 
-            Point pos = e.GetPosition(EditorOverlayCanvas);
+            _isDrawingTextRect = true;
+            _textRectStart = e.GetPosition(EditorOverlayCanvas);
 
+            // Tymczasowa ramka wyboru obszaru
+            _textRubberBand = new Rectangle
+            {
+                Stroke = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                Fill = new SolidColorBrush(Color.FromArgb(30, 0, 120, 212)),
+                Width = 0,
+                Height = 0
+            };
+            Canvas.SetLeft(_textRubberBand, _textRectStart.X);
+            Canvas.SetTop(_textRubberBand, _textRectStart.Y);
+            EditorOverlayCanvas.Children.Add(_textRubberBand);
+            EditorOverlayCanvas.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void EditorCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isDrawingTextRect || _textRubberBand == null) return;
+            Point cur = e.GetPosition(EditorOverlayCanvas);
+            double x = Math.Min(cur.X, _textRectStart.X);
+            double y = Math.Min(cur.Y, _textRectStart.Y);
+            double w = Math.Abs(cur.X - _textRectStart.X);
+            double h = Math.Abs(cur.Y - _textRectStart.Y);
+            Canvas.SetLeft(_textRubberBand, x);
+            Canvas.SetTop(_textRubberBand, y);
+            _textRubberBand.Width = w;
+            _textRubberBand.Height = h;
+        }
+
+        private void EditorCanvas_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isDrawingTextRect || _textRubberBand == null) return;
+            _isDrawingTextRect = false;
+            EditorOverlayCanvas.ReleaseMouseCapture();
+
+            double left   = Canvas.GetLeft(_textRubberBand);
+            double top    = Canvas.GetTop(_textRubberBand);
+            double width  = Math.Max(_textRubberBand.Width,  80);
+            double height = Math.Max(_textRubberBand.Height, 40);
+
+            EditorOverlayCanvas.Children.Remove(_textRubberBand);
+            _textRubberBand = null;
+
+            // Minimalny obszar — ignoruj kliknięcia bez przeciągania
+            if (width < 10 && height < 10) return;
+
+            AddTextBox(left, top, width, height);
+        }
+
+        private void AddTextBox(double left, double top, double w, double h)
+        {
             var tb = new TextBox
             {
-                Text = "Wpisz tekst...",
-                FontSize = 16,
-                Foreground = Brushes.Black,
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(1),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
-                MinWidth = 80,
-                AcceptsReturn = true,
-                Cursor = Cursors.IBeam
+                Width            = w,
+                Height           = h,
+                FontSize         = 16,
+                Foreground       = Brushes.Black,
+                Background       = Brushes.Transparent,
+                BorderBrush      = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+                BorderThickness  = new Thickness(1.5),
+                TextWrapping     = TextWrapping.Wrap,
+                AcceptsReturn    = true,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+                Cursor           = Cursors.IBeam
             };
 
-            // Przeciąganie pola tekstowego za pomocą Ctrl+drag lub drag na obramowaniu
+            // ---- ContextMenu: rozmiar + kolor ----
+            var cm = new ContextMenu();
+            var sizeHeader = new MenuItem { Header = "Rozmiar czcionki", IsEnabled = false };
+            cm.Items.Add(sizeHeader);
+            foreach (int sz in new[] { 10, 12, 14, 16, 20, 24, 32, 48 })
+            {
+                int captured = sz;
+                var mi = new MenuItem { Header = $"{sz} pt" };
+                mi.Click += (_, _) => tb.FontSize = captured;
+                cm.Items.Add(mi);
+            }
+            cm.Items.Add(new Separator());
+            var colorHeader = new MenuItem { Header = "Kolor tekstu", IsEnabled = false };
+            cm.Items.Add(colorHeader);
+            foreach (var (name, brush) in new (string, Brush)[]
+            {
+                ("Czarny",    Brushes.Black),
+                ("Biały",     Brushes.White),
+                ("Czerwony",  Brushes.Red),
+                ("Niebieski", Brushes.DodgerBlue),
+                ("Zielony",   Brushes.Green),
+                ("Żółty",     Brushes.Gold)
+            })
+            {
+                var b = brush;
+                var mi = new MenuItem { Header = name };
+                mi.Click += (_, _) => tb.Foreground = b;
+                cm.Items.Add(mi);
+            }
+            tb.ContextMenu = cm;
+
+            // ---- Drag: przeciąganie całego TextBoxa ----
             Point dragStart = default;
-            bool isDragging = false;
+            bool  isDragging = false;
+
+            tb.PreviewMouseRightButtonDown += (s, ev) =>
+            {
+                ev.Handled = false; // pozwól otworzyć ContextMenu
+            };
 
             tb.PreviewMouseLeftButtonDown += (s, ev) =>
             {
-                if (ev.GetPosition(tb).Y < 20) // górna krawędź = drag handle
+                // drag = klik poza obszarem wpisywania (np. brzeg)
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt))
                 {
-                    isDragging = true;
-                    dragStart = ev.GetPosition(EditorOverlayCanvas);
+                    isDragging  = true;
+                    dragStart   = ev.GetPosition(EditorOverlayCanvas);
                     tb.CaptureMouse();
                     ev.Handled = true;
                 }
@@ -808,8 +912,8 @@ namespace Segmento
             {
                 if (!isDragging) return;
                 Point cur = ev.GetPosition(EditorOverlayCanvas);
-                Canvas.SetLeft(tb, Canvas.GetLeft(tb) + (cur.X - dragStart.X));
-                Canvas.SetTop(tb, Canvas.GetTop(tb) + (cur.Y - dragStart.Y));
+                Canvas.SetLeft(tb, Canvas.GetLeft(tb) + cur.X - dragStart.X);
+                Canvas.SetTop (tb, Canvas.GetTop(tb)  + cur.Y - dragStart.Y);
                 dragStart = cur;
             };
             tb.PreviewMouseLeftButtonUp += (s, ev) =>
@@ -819,73 +923,158 @@ namespace Segmento
                 tb.ReleaseMouseCapture();
             };
 
-            // Usunięcie po wciśnięciu Escape
+            // ---- LostFocus: ukryj ramkę, dezaktywuj narzędzie ----
+            tb.LostFocus += (s, ev) =>
+            {
+                tb.BorderThickness = new Thickness(0);
+                if (_currentTool == EditorTool.Text)
+                {
+                    _currentTool = EditorTool.None;
+                    ToolTextBtn.IsChecked = false;
+                    ApplyToolToInkCanvas();
+                    EditorScrollViewer.Cursor = Cursors.SizeAll;
+                }
+            };
+
+            // ---- Escape: usuń pole ----
             tb.KeyDown += (s, ev) =>
             {
                 if (ev.Key == Key.Escape)
                     EditorOverlayCanvas.Children.Remove(tb);
             };
 
-            Canvas.SetLeft(tb, pos.X);
-            Canvas.SetTop(tb, pos.Y);
+            Canvas.SetLeft(tb, left);
+            Canvas.SetTop (tb, top);
             EditorOverlayCanvas.Children.Add(tb);
             tb.Focus();
-            tb.SelectAll();
         }
 
-        // --- Obraz ze schowka ---
+        // ================================================================
+        // NARZĘDZIE: OBRAZ
+        // ================================================================
 
-        private void PasteImageFromClipboard()
+        private void OpenImageFromDialog()
         {
-            BitmapSource? bmpSrc = null;
-
-            if (Clipboard.ContainsImage())
-                bmpSrc = Clipboard.GetImage();
-            else if (Clipboard.ContainsFileDropList())
+            var dlg = new OpenFileDialog
             {
-                var files = Clipboard.GetFileDropList();
-                var imgFile = files.Cast<string>()
-                    .FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-                                      || f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase));
-                if (imgFile != null)
-                    bmpSrc = new BitmapImage(new Uri(imgFile));
+                Title  = "Wybierz obraz",
+                Filter = "Obrazy|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff|Wszystkie pliki|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            BitmapImage bmp;
+            try
+            {
+                bmp = new BitmapImage(new Uri(dlg.FileName));
             }
-
-            if (bmpSrc == null)
+            catch
             {
-                StatusText.Text = "Schowek nie zawiera obrazu";
-                ToolImageBtn.IsChecked = false;
+                StatusText.Text = "Nie można wczytać pliku obrazu";
                 return;
             }
 
-            var img = new Image
+            PlaceImageOnCanvas(bmp);
+        }
+
+        private void PlaceImageOnCanvas(BitmapSource src)
+        {
+            double initW = Math.Min(src.PixelWidth,  400);
+            double aspect = (double)src.PixelHeight / src.PixelWidth;
+            double initH = initW * aspect;
+
+            // Kontener: Image + uchwyt resize w prawym dolnym rogu
+            var img = new Image { Source = src, Stretch = Stretch.Fill };
+
+            var handle = new Rectangle
             {
-                Source = bmpSrc,
-                Width = Math.Min(bmpSrc.PixelWidth, 400),
+                Width  = 14, Height = 14,
+                Fill   = new SolidColorBrush(Color.FromRgb(0, 120, 212)),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Bottom,
+                Cursor = Cursors.SizeNWSE,
+                Margin = new Thickness(0, 0, -7, -7)
+            };
+
+            var container = new Grid
+            {
+                Width  = initW,
+                Height = initH,
                 Cursor = Cursors.SizeAll
             };
+            container.Children.Add(img);
+            container.Children.Add(handle);
 
-            img.MouseLeftButtonDown += (s, e) =>
-            {
-                img.CaptureMouse();
-                e.Handled = true;
-            };
-            img.MouseMove += (s, e) =>
-            {
-                if (e.LeftButton == MouseButtonState.Pressed)
-                {
-                    var p = e.GetPosition(EditorOverlayCanvas);
-                    Canvas.SetLeft(img, p.X - img.Width / 2);
-                    Canvas.SetTop(img, p.Y - img.ActualHeight / 2);
-                }
-            };
-            img.MouseLeftButtonUp += (s, e) => img.ReleaseMouseCapture();
+            // --- Przeciąganie kontenera ---
+            Point dragStart = default;
+            bool  isDragging = false;
 
-            Canvas.SetLeft(img, 50);
-            Canvas.SetTop(img, 50);
-            EditorOverlayCanvas.Children.Add(img);
-            ToolImageBtn.IsChecked = false;
-            _currentTool = EditorTool.None;
+            container.MouseLeftButtonDown += (s, ev) =>
+            {
+                if (ev.OriginalSource == handle) return;
+                isDragging = true;
+                dragStart  = ev.GetPosition(EditorOverlayCanvas);
+                container.CaptureMouse();
+                ev.Handled = true;
+            };
+            container.MouseMove += (s, ev) =>
+            {
+                if (!isDragging) return;
+                Point cur = ev.GetPosition(EditorOverlayCanvas);
+                Canvas.SetLeft(container, Canvas.GetLeft(container) + cur.X - dragStart.X);
+                Canvas.SetTop (container, Canvas.GetTop(container)  + cur.Y - dragStart.Y);
+                dragStart = cur;
+            };
+            container.MouseLeftButtonUp += (s, ev) =>
+            {
+                if (!isDragging) return;
+                isDragging = false;
+                container.ReleaseMouseCapture();
+            };
+
+            // --- Skalowanie za uchwyt ---
+            Point resizeStart = default;
+            bool  isResizing  = false;
+            double startW = initW, startH = initH;
+
+            handle.MouseLeftButtonDown += (s, ev) =>
+            {
+                isResizing  = true;
+                resizeStart = ev.GetPosition(EditorOverlayCanvas);
+                startW = container.Width;
+                startH = container.Height;
+                handle.CaptureMouse();
+                ev.Handled = true;
+            };
+            handle.MouseMove += (s, ev) =>
+            {
+                if (!isResizing) return;
+                Point cur = ev.GetPosition(EditorOverlayCanvas);
+                double newW = Math.Max(40, startW + cur.X - resizeStart.X);
+                double newH = Math.Max(40, startH + cur.Y - resizeStart.Y);
+                container.Width  = newW;
+                container.Height = newH;
+            };
+            handle.MouseLeftButtonUp += (s, ev) =>
+            {
+                if (!isResizing) return;
+                isResizing = false;
+                handle.ReleaseMouseCapture();
+            };
+
+            Canvas.SetLeft(container, 60);
+            Canvas.SetTop (container, 60);
+            EditorOverlayCanvas.Children.Add(container);
+            StatusText.Text = "Obraz dodany · przeciągnij aby przesunąć · prawy-dolny róg = skaluj";
+        }
+
+        private void PasteImageFromClipboard()
+        {
+            if (Clipboard.ContainsImage())
+            {
+                PlaceImageOnCanvas(Clipboard.GetImage());
+                return;
+            }
+            StatusText.Text = "Schowek nie zawiera obrazu — użyj przycisku Obraz aby wybrać plik";
         }
 
         // --- Cofnij ---
