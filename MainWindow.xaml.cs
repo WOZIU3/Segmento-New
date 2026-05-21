@@ -42,6 +42,8 @@ namespace Segmento
         private Point _dragStartPoint;
         private PageItem? _draggedItem;
         private readonly Dictionary<PageItem, byte[]> _editedPages = new();
+        private bool _isPanning;
+        private Point _panStartPoint;
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int attrValue, int attrSize);
@@ -735,6 +737,10 @@ namespace Segmento
 
             if (_currentTool == EditorTool.Image)
                 PasteImageFromClipboard();
+
+            EditorScrollViewer.Cursor = _currentTool == EditorTool.None
+                ? Cursors.SizeAll
+                : Cursors.Arrow;
         }
 
         private void ApplyToolToInkCanvas()
@@ -979,6 +985,37 @@ namespace Segmento
 
             EditorScrollViewer.ScrollToHorizontalOffset(newOffsetX);
             EditorScrollViewer.ScrollToVerticalOffset(newOffsetY);
+        }
+
+        private void EditorScroll_PanStart(object sender, MouseButtonEventArgs e)
+        {
+            if (_currentTool != EditorTool.None) return;
+            _isPanning = true;
+            _panStartPoint = e.GetPosition(EditorScrollViewer);
+            EditorScrollViewer.Cursor = Cursors.SizeAll;
+            EditorScrollViewer.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void EditorScroll_PanMove(object sender, MouseEventArgs e)
+        {
+            if (!_isPanning) return;
+            Point current = e.GetPosition(EditorScrollViewer);
+            double dx = _panStartPoint.X - current.X;
+            double dy = _panStartPoint.Y - current.Y;
+            EditorScrollViewer.ScrollToHorizontalOffset(
+                EditorScrollViewer.HorizontalOffset + dx);
+            EditorScrollViewer.ScrollToVerticalOffset(
+                EditorScrollViewer.VerticalOffset + dy);
+            _panStartPoint = current;
+        }
+
+        private void EditorScroll_PanEnd(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isPanning) return;
+            _isPanning = false;
+            EditorScrollViewer.Cursor = Cursors.Arrow;
+            EditorScrollViewer.ReleaseMouseCapture();
         }
 
         #endregion
