@@ -873,12 +873,13 @@
                                                                     <ColumnDefinition Width="*"/>
                                                                     <ColumnDefinition Width="30"/>
                                                                 </Grid.ColumnDefinitions>
-                                                                <ContentPresenter Grid.Column="0"
-                                                                                  Content="{TemplateBinding SelectionBoxItem}"
-                                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                                                  Margin="12,0,0,0"
-                                                                                  VerticalAlignment="Center"
-                                                                                  TextBlock.Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding SelectedItem.DisplayName,
+                                                                               RelativeSource={RelativeSource TemplatedParent}}"
+                                                                           Margin="12,0,0,0"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                           FontSize="12"/>
                                                                 <TextBlock Grid.Column="1"
                                                                            Text="&#xE70D;"
                                                                            FontFamily="{StaticResource IconFont}"
@@ -950,6 +951,21 @@
                                             </Setter>
                                         </Style>
                                     </ComboBox.Style>
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding SourceBadge}"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
                                 </ComboBox>
                                 <Border Width="1" Height="14" Background="{DynamicResource BorderBrush}"
                                         Margin="16,0"/>
