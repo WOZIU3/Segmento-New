@@ -18,7 +18,6 @@ using Microsoft.Win32;
 using PDFtoImage;
 using SkiaSharp;
 using System.Windows.Controls.Primitives;
-using System.Windows.Shapes;
 
 using PdfSharpPdfDocument = PdfSharp.Pdf.PdfDocument;
 using PdfSharpPdfReader = PdfSharp.Pdf.IO.PdfReader;
@@ -1399,7 +1398,7 @@ namespace Segmento
 
                 ExportProgress.Visibility = Visibility.Collapsed;
                 ExportProgress.IsIndeterminate = false;
-                StatusText.Text = $"Wyeksportowano {count} stron do: {Path.GetFileName(outputPath)}";
+                StatusText.Text = $"Wyeksportowano {count} stron do: {System.IO.Path.GetFileName(outputPath)}";
             }
             catch (Exception ex)
             {
