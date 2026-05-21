@@ -854,7 +854,7 @@ namespace Segmento
                 TextWrapping    = TextWrapping.Wrap,
                 AcceptsReturn   = true,
                 FontSize        = 14,
-                Foreground      = Brushes.White,
+                Foreground      = Brushes.Black,
                 FontFamily      = new FontFamily("Segoe UI Variable"),
                 Padding         = new Thickness(2),
                 Margin          = new Thickness(HH),
@@ -953,27 +953,42 @@ namespace Segmento
                 if (ev.Key == Key.Escape) EditorOverlayCanvas.Focus();
             };
 
-            // ── Przenoszenie (Alt+drag) ─────────────────────────────────────
-            Point moveStart = default;
-            bool  isMoving  = false;
+            // ── Przenoszenie (LPM drag z progiem) ──────────────────────────
+            Point moveStart   = default;
+            bool  isMoving    = false;
+            bool  movePending = false;
+            
             tb.PreviewMouseLeftButtonDown += (s, ev) =>
             {
-                if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)) return;
-                isMoving = true;
+                movePending = true;
                 moveStart = ev.GetPosition(EditorOverlayCanvas);
-                container.CaptureMouse();
-                ev.Handled = true;
             };
-            container.MouseMove += (s, ev) =>
+            tb.PreviewMouseLeftButtonUp += (s, ev) => movePending = false;
+            
+            container.PreviewMouseMove += (s, ev) =>
             {
-                if (!isMoving) return;
-                var cur = ev.GetPosition(EditorOverlayCanvas);
-                Canvas.SetLeft(container, Canvas.GetLeft(container) + cur.X - moveStart.X);
-                Canvas.SetTop (container, Canvas.GetTop(container)  + cur.Y - moveStart.Y);
-                moveStart = cur;
+                if (movePending && ev.LeftButton == MouseButtonState.Pressed)
+                {
+                    var cur = ev.GetPosition(EditorOverlayCanvas);
+                    if (Math.Abs(cur.X - moveStart.X) > 6 || Math.Abs(cur.Y - moveStart.Y) > 6)
+                    {
+                        movePending = false;
+                        isMoving    = true;
+                        container.CaptureMouse();
+                        ev.Handled  = true;
+                    }
+                }
+                if (isMoving)
+                {
+                    var cur = ev.GetPosition(EditorOverlayCanvas);
+                    Canvas.SetLeft(container, Canvas.GetLeft(container) + cur.X - moveStart.X);
+                    Canvas.SetTop (container, Canvas.GetTop (container) + cur.Y - moveStart.Y);
+                    moveStart = cur;
+                }
             };
             container.MouseLeftButtonUp += (s, ev) =>
             {
+                movePending = false;
                 if (!isMoving) return;
                 isMoving = false;
                 container.ReleaseMouseCapture();
@@ -1042,12 +1057,13 @@ namespace Segmento
             {
                 int s = sz;
                 var btn = new Button
-                {
-                    Content = $"{s}",
-                    Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
-                    Foreground = Brushes.White, Background = Brushes.Transparent,
-                    BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
-                };
+            {
+                Content = $"{s}",
+                Focusable = false,
+                Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
+                Foreground = Brushes.White, Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
+            };
                 btn.Click += (_, _) => { tb.FontSize = s; tb.Focus(); };
                 sizeRow.Children.Add(btn);
             }
@@ -1083,6 +1099,7 @@ namespace Segmento
             var delBtn = new Button
             {
                 Content = "✕", Padding = new Thickness(7,2,7,2), Margin = new Thickness(6,0,0,0),
+                Focusable = false,
                 Foreground = new SolidColorBrush(Color.FromRgb(255,80,80)),
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0),
                 FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand
@@ -1338,7 +1355,7 @@ namespace Segmento
             return new Popup
             {
                 Placement = PlacementMode.Bottom, VerticalOffset = 6,
-                AllowsTransparency = true, StaysOpen = true,
+                AllowsTransparency = true, StaysOpen = false,
                 IsOpen = false, Child = toolBorder
             };
         }
