@@ -860,51 +860,88 @@ namespace Segmento
         private async void SaveEditorPage_Click(object sender, RoutedEventArgs e)
         {
             if (_editorPage == null) return;
-
+        
             try
             {
                 SaveEditorBtn.IsEnabled = false;
                 StatusText.Text = "Zapisywanie zmian...";
-
+        
+                // Reset zoom przed renderowaniem (UI thread)
                 double prevScale = EditorScale.ScaleX;
                 EditorScale.ScaleX = 1;
                 EditorScale.ScaleY = 1;
                 EditorCanvasGrid.UpdateLayout();
-
+        
+                // Renderuj na UI thread
+                int renderW = (int)EditorPageImage.ActualWidth;
+                int renderH = (int)EditorPageImage.ActualHeight;
+        
+                if (renderW <= 0 || renderH <= 0)
+                {
+                    StatusText.Text = "Błąd: brak załadowanej strony";
+                    return;
+                }
+        
                 var renderBitmap = new RenderTargetBitmap(
-                    (int)EditorCanvasGrid.ActualWidth,
-                    (int)EditorCanvasGrid.ActualHeight,
-                    96, 96,
-                    PixelFormats.Pbgra32);
-                renderBitmap.Render(EditorCanvasGrid);
-
+                    renderW, renderH, 96, 96, PixelFormats.Pbgra32);
+        
+                // Renderuj każdą warstwę osobno względem Image
+                var drawingVisual = new System.Windows.Media.DrawingVisual();
+                using (var ctx = drawingVisual.RenderOpen())
+                {
+                    var imageRect = new Rect(0, 0, renderW, renderH);
+        
+                    // Warstwa 1: obraz PDF
+                    var imgBrush = new ImageBrush(EditorPageImage.Source as BitmapSource);
+                    ctx.DrawRectangle(imgBrush, null, imageRect);
+        
+                    // Warstwa 2: InkCanvas (białe kreski gumki + ewentualne stroki)
+                    var inkVisual = new System.Windows.Media.VisualBrush(EditorInkCanvas)
+                    {
+                        Stretch = Stretch.Fill
+                    };
+                    ctx.DrawRectangle(inkVisual, null, imageRect);
+        
+                    // Warstwa 3: Canvas z tekstem i obrazkami
+                    var overlayVisual = new System.Windows.Media.VisualBrush(EditorOverlayCanvas)
+                    {
+                        Stretch = Stretch.Fill
+                    };
+                    ctx.DrawRectangle(overlayVisual, null, imageRect);
+                }
+                renderBitmap.Render(drawingVisual);
+        
+                // Przywróć zoom
                 EditorScale.ScaleX = prevScale;
                 EditorScale.ScaleY = prevScale;
-
+        
+                // Konwertuj do PNG na UI thread, zamroź przed przekazaniem do Task.Run
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
+                using var pngStream = new MemoryStream();
+                encoder.Save(pngStream);
+                byte[] pngBytes = pngStream.ToArray();
+        
+                // Tworzenie PDF w tle (tylko byte[] — brak obiektów UI)
                 byte[] pdfBytes = await Task.Run(() =>
                 {
-                    var encoder = new PngBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
-                    using var pngStream = new MemoryStream();
-                    encoder.Save(pngStream);
-                    byte[] pngBytes = pngStream.ToArray();
-
                     using var outStream = new MemoryStream();
                     using var writer = new ITextPdfWriter(outStream);
                     using var doc = new ITextPdfDocument(writer);
-
+        
                     var imgData = iText.IO.Image.ImageDataFactory.Create(pngBytes);
-                    var pdfPage = doc.AddNewPage(
-                        new iText.Kernel.Geom.PageSize(imgData.GetWidth(), imgData.GetHeight()));
-                    var canvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(pdfPage);
-                    canvas.AddImageAt(imgData, 0, 0, false);
+                    var pageSize = new iText.Kernel.Geom.PageSize(
+                        imgData.GetWidth(), imgData.GetHeight());
+                    doc.AddNewPage(pageSize);
+                    var pdfCanvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(doc.GetPage(1));
+                    pdfCanvas.AddImageAt(imgData, 0, 0, false);
                     doc.Close();
-
+        
                     return outStream.ToArray();
                 });
-
+        
                 _editedPages[_editorPage] = pdfBytes;
-
+        
                 StatusText.Text = "Zapisano · Powrót do organizacji";
                 NavOrganize.IsChecked = true;
             }
