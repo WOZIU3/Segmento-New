@@ -18,6 +18,7 @@ using Microsoft.Win32;
 using PDFtoImage;
 using SkiaSharp;
 using System.Windows.Controls.Primitives;
+using System.Windows.Shapes;
 
 using PdfSharpPdfDocument = PdfSharp.Pdf.PdfDocument;
 using PdfSharpPdfReader = PdfSharp.Pdf.IO.PdfReader;
