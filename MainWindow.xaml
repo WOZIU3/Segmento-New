@@ -435,12 +435,40 @@
                                                 Click="SelectAll_Click" Margin="0,0,4,0"/>
                                         <Button Content="Usuń zaznaczenie" Style="{StaticResource GhostButton}"
                                                 Click="DeselectAll_Click" Margin="0,0,12,0"/>
-                                        <Button Content="Resetuj"
-                                                Background="#c4c4c4"
-                                                Foreground="#1a1a1a"
-                                                Style="{StaticResource PrimaryButton}"
-                                                Click="ResetAndGoBack_Click"
-                                                Margin="0,0,8,0"/>
+                                        <Button Click="ResetAndGoBack_Click"
+                                                Margin="0,0,8,0"
+                                                Padding="16,8"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                                    Value="{DynamicResource TextSecondaryBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock Text="Resetuj" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="White"/>
+                                        </Button>
                                         <Button x:Name="GoToOrganizeBtn"
                                                 Click="GoToOrganize_Click"
                                                 IsEnabled="False"
@@ -599,12 +627,40 @@
                                                Margin="0,2,0,0"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Resetuj"
-                                                Background="#c4c4c4"
-                                                Foreground="#1a1a1a"
-                                                Style="{StaticResource PrimaryButton}"
-                                            Click="ResetAndGoBack_Click"
-                                            Margin="0,0,8,0"/>
+                                    <Button Click="ResetAndGoBack_Click"
+                                            Margin="0,0,8,0"
+                                            Padding="16,8"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush"
+                                                                Value="{DynamicResource TextSecondaryBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <TextBlock Text="Resetuj" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                    </Button>
                                     <Button x:Name="ExportBtn"
                                                 Click="Export_Click"
                                                 IsEnabled="False"
@@ -798,55 +854,241 @@
                                            Foreground="{DynamicResource TextSecondaryBrush}"
                                            Margin="0,0,6,0"/>
                                 <ComboBox x:Name="EditorPageCombo"
-                                          Width="160"
-                                          Height="32"
-                                          Padding="10,4"
-                                          Background="{DynamicResource SurfaceElevatedBrush}"
-                                          Foreground="{DynamicResource TextPrimaryBrush}"
-                                          BorderBrush="{DynamicResource BorderBrush}"
-                                          BorderThickness="1"
-                                          FontSize="12"
-                                          VerticalContentAlignment="Center"
+                                          Width="160" Height="36"
                                           SelectionChanged="EditorPageCombo_SelectionChanged">
-                                    <ComboBox.ItemContainerStyle>
-                                        <Style TargetType="ComboBoxItem">
-                                            <Setter Property="Background" Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                    <ComboBox.Style>
+                                        <Style TargetType="ComboBox">
+                                            <Setter Property="Background" Value="#1a1a1a"/>
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-                                            <Setter Property="Padding" Value="10,6"/>
+                                            <Setter Property="FontSize" Value="12"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ComboBox">
+                                                        <Border x:Name="bd"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                                BorderThickness="1" CornerRadius="8">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="30"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <ContentPresenter Grid.Column="0"
+                                                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                                                  Margin="12,0,0,0"
+                                                                                  VerticalAlignment="Center"
+                                                                                  TextBlock.Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="&#xE70D;"
+                                                                           FontFamily="{StaticResource IconFont}"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           HorizontalAlignment="Center"/>
+                                                                <ToggleButton Grid.ColumnSpan="2"
+                                                                              Focusable="False"
+                                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
+                                                                                  RelativeSource={RelativeSource TemplatedParent}}"
+                                                                              Background="Transparent"
+                                                                              BorderThickness="0"/>
+                                                                <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                                       AllowsTransparency="True"
+                                                                       Placement="Bottom"
+                                                                       PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                                                       VerticalOffset="4">
+                                                                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                                                            BorderBrush="{DynamicResource BorderBrush}"
+                                                                            BorderThickness="1" CornerRadius="8" Padding="4">
+                                                                        <ScrollViewer MaxHeight="220"
+                                                                                      VerticalScrollBarVisibility="Auto">
+                                                                            <ItemsPresenter/>
+                                                                        </ScrollViewer>
+                                                                    </Border>
+                                                                </Popup>
+                                                            </Grid>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="bd" Property="BorderBrush"
+                                                                        Value="{DynamicResource TextSecondaryBrush}"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Setter Property="ItemContainerStyle">
+                                                <Setter.Value>
+                                                    <Style TargetType="ComboBoxItem">
+                                                        <Setter Property="Background" Value="Transparent"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                                        <Setter Property="Padding" Value="10,7"/>
+                                                        <Setter Property="Template">
+                                                            <Setter.Value>
+                                                                <ControlTemplate TargetType="ComboBoxItem">
+                                                                    <Border x:Name="itemBd"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="6"
+                                                                            Padding="{TemplateBinding Padding}">
+                                                                        <ContentPresenter/>
+                                                                    </Border>
+                                                                    <ControlTemplate.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter TargetName="itemBd" Property="Background"
+                                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                                        </Trigger>
+                                                                        <Trigger Property="IsSelected" Value="True">
+                                                                            <Setter TargetName="itemBd" Property="Background"
+                                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                                        </Trigger>
+                                                                    </ControlTemplate.Triggers>
+                                                                </ControlTemplate>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Style>
+                                                </Setter.Value>
+                                            </Setter>
                                         </Style>
-                                    </ComboBox.ItemContainerStyle>
+                                    </ComboBox.Style>
                                 </ComboBox>
                                 <Border Width="1" Height="14" Background="{DynamicResource BorderBrush}"
                                         Margin="16,0"/>
                                 <!-- Narzędzia -->
-                                <RadioButton x:Name="ToolTextBtn" Content="Tekst"
-                                             Style="{StaticResource SidebarButton}"
-                                             GroupName="EditorTools"
-                                             Click="Tool_Click" Tag="Text" Margin="0,0,4,0"/>
-                                <RadioButton x:Name="ToolImageBtn" Content="Obraz"
-                                             Style="{StaticResource SidebarButton}"
-                                             GroupName="EditorTools"
-                                             Click="Tool_Click" Tag="Image" Margin="0,0,4,0"/>
-                                <RadioButton x:Name="ToolEraserBtn" Content="Gumka"
-                                             Style="{StaticResource SidebarButton}"
-                                             GroupName="EditorTools"
-                                             Click="Tool_Click" Tag="Eraser" Margin="0,0,4,0"/>
+                                <RadioButton x:Name="ToolTextBtn"
+                                             GroupName="EditorTools" Click="Tool_Click"
+                                             Tag="Text" Margin="0,0,4,0"
+                                             Width="38" Height="38" ToolTip="Tekst">
+                                    <RadioButton.Template>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border x:Name="bd"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1" CornerRadius="8"
+                                                    Width="38" Height="38">
+                                                <TextBlock Text="&#xE8D2;"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="16"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    <Setter TargetName="bd" Property="BorderBrush" Value="#E85E00"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </RadioButton.Template>
+                                </RadioButton>
+                                <RadioButton x:Name="ToolImageBtn"
+                                             GroupName="EditorTools" Click="Tool_Click"
+                                             Tag="Image" Margin="0,0,4,0"
+                                             Width="38" Height="38" ToolTip="Wstaw obraz">
+                                    <RadioButton.Template>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border x:Name="bd"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1" CornerRadius="8"
+                                                    Width="38" Height="38">
+                                                <TextBlock Text="&#xEB9F;"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="16"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    <Setter TargetName="bd" Property="BorderBrush" Value="#E85E00"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </RadioButton.Template>
+                                </RadioButton>
+                                <RadioButton x:Name="ToolEraserBtn"
+                                             GroupName="EditorTools" Click="Tool_Click"
+                                             Tag="Eraser" Margin="0,0,4,0"
+                                             Width="38" Height="38" ToolTip="Gumka">
+                                    <RadioButton.Template>
+                                        <ControlTemplate TargetType="RadioButton">
+                                            <Border x:Name="bd"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1" CornerRadius="8"
+                                                    Width="38" Height="38">
+                                                <TextBlock Text="&#xED60;"
+                                                           FontFamily="{StaticResource IconFont}"
+                                                           FontSize="16"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="bd" Property="Background"
+                                                            Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    <Setter TargetName="bd" Property="BorderBrush" Value="#E85E00"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </RadioButton.Template>
+                                </RadioButton>
                                 <Button Content="Cofnij" Style="{StaticResource GhostButton}"
                                         Click="EditorUndo_Click" Margin="8,0,0,0"/>
                             </StackPanel>
                 
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Resetuj"
-                                                Click="ResetAndGoBack_Click"
-                                                Margin="0,0,8,0"
-                                                Padding="16,8">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-                                                    <Setter Property="Background" Value="#c4c4c4"/>
-                                                    <Setter Property="Foreground" Value="#1a1a1a"/>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+                                    <Button Click="ResetAndGoBack_Click"
+                                            Margin="0,0,8,0"
+                                            Padding="16,8"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush"
+                                                                Value="{DynamicResource TextSecondaryBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <TextBlock Text="Resetuj" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                    </Button>
                                     <Button x:Name="SaveEditorBtn"
                                             Click="SaveEditorPage_Click"
                                             Padding="16,8"
@@ -899,7 +1141,10 @@
                                       HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Auto"
                                       Background="{DynamicResource WindowBackgroundBrush}"
-                                      PreviewMouseWheel="EditorScroll_PreviewMouseWheel">
+                                      PreviewMouseWheel="EditorScroll_PreviewMouseWheel"
+                                      PreviewMouseLeftButtonDown="EditorScroll_PanStart"
+                                      PreviewMouseMove="EditorScroll_PanMove"
+                                      PreviewMouseLeftButtonUp="EditorScroll_PanEnd">
                             <Grid x:Name="EditorCanvasGrid"
                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                       Margin="32">
