@@ -738,37 +738,32 @@ namespace Segmento
 
             ApplyToolToInkCanvas();
 
-            if (_currentTool == EditorTool.Image)
-            {
-                OpenImageFromDialog();
-                // dezaktywuj przycisk — narzędzie jest jednorazowe
-                ToolImageBtn.IsChecked = false;
-                _currentTool = EditorTool.None;
-                ApplyToolToInkCanvas();
-            }
-
-            EditorScrollViewer.Cursor = _currentTool == EditorTool.None
-                ? Cursors.SizeAll : Cursors.Arrow;
+        if (_currentTool == EditorTool.Image)
+        {
+            OpenImageFromDialog();
+            ToolImageBtn.IsChecked = false;
+            _currentTool = EditorTool.None;
+            ApplyToolToInkCanvas();
+        }
+        
+        if (_currentTool == EditorTool.Eraser)
+        {
+            EditorOverlayCanvas.Children.Clear();
+            EditorInkCanvas.Strokes.Clear();
+            ToolEraserBtn.IsChecked = false;
+            _currentTool = EditorTool.None;
+            ApplyToolToInkCanvas();
+            StatusText.Text = "Usunięto wszystkie naniesione zmiany";
+        }
+        
+        EditorScrollViewer.Cursor = _currentTool == EditorTool.None
+            ? Cursors.SizeAll : Cursors.Arrow;
         }
 
         private void ApplyToolToInkCanvas()
         {
             switch (_currentTool)
             {
-                case EditorTool.Eraser:
-                    // Biała gumka — rysuje białe kreski maskujące treść
-                    EditorInkCanvas.DefaultDrawingAttributes = new System.Windows.Ink.DrawingAttributes
-                    {
-                        Color = Colors.White,
-                        Width = 24,
-                        Height = 24,
-                        StylusTip = System.Windows.Ink.StylusTip.Rectangle,
-                        IsHighlighter = false
-                    };
-                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
-                    EditorInkCanvas.IsHitTestVisible = true;
-                    EditorInkCanvas.Cursor = Cursors.Cross;
-                    break;
 
                 default:
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.None;
@@ -1516,11 +1511,24 @@ namespace Segmento
         private void EditorScroll_PanStart(object sender, MouseButtonEventArgs e)
         {
             if (_currentTool != EditorTool.None) return;
+            if (IsInsideOverlayChild(e.OriginalSource as DependencyObject)) return;
             _isPanning = true;
             _panStartPoint = e.GetPosition(EditorScrollViewer);
             EditorScrollViewer.Cursor = Cursors.SizeAll;
             EditorScrollViewer.CaptureMouse();
             e.Handled = true;
+        }
+        
+        private bool IsInsideOverlayChild(DependencyObject? src)
+        {
+            var current = src;
+            while (current != null)
+            {
+                if (current == EditorOverlayCanvas) return false;
+                if (VisualTreeHelper.GetParent(current) == EditorOverlayCanvas) return true;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return false;
         }
 
         private void EditorScroll_PanMove(object sender, MouseEventArgs e)
