@@ -181,14 +181,14 @@ namespace Segmento
         {
             var dialog = new OpenFileDialog
             {
-                Filter = "Pliki PDF (*.pdf)|*.pdf|Wszystkie pliki (*.*)|*.*",
-                Title = "Wybierz pliki PDF",
+                Filter = "Dokumenty i obrazy (*.pdf;*.png;*.jpg;*.jpeg)|*.pdf;*.png;*.jpg;*.jpeg|Pliki PDF (*.pdf)|*.pdf|Obrazy (*.png;*.jpg;*.jpeg)|*.png;*.jpg;*.jpeg|Wszystkie pliki (*.*)|*.*",
+                Title = "Wybierz pliki PDF lub obrazy",
                 Multiselect = true
             };
 
             if (dialog.ShowDialog() == true)
             {
-                _ = LoadPdfsAsync(dialog.FileNames);
+                _ = LoadFilesAsync(dialog.FileNames);
             }
         }
 
@@ -197,7 +197,7 @@ namespace Segmento
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                e.Effects = files.Any(f => f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                e.Effects = files.Any(f => IsSupportedFile(f))
                     ? DragDropEffects.Copy : DragDropEffects.None;
             }
             else { e.Effects = DragDropEffects.None; }
@@ -209,12 +209,12 @@ namespace Segmento
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 var files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                var pdfs = files.Where(f => f.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (pdfs.Length > 0) _ = LoadPdfsAsync(pdfs);
+                var supported = files.Where(f => IsSupportedFile(f)).ToArray();
+                if (supported.Length > 0) _ = LoadFilesAsync(supported);
             }
         }
 
-        private async Task LoadPdfsAsync(string[] filePaths)
+        private async Task LoadFilesAsync(string[] filePaths)
         {
             _thumbnailCts?.Cancel();
             _thumbnailCts = new CancellationTokenSource();
@@ -222,7 +222,7 @@ namespace Segmento
 
             try
             {
-                LoadingText.Text = "Wczytywanie plików PDF...";
+                LoadingText.Text = "Wczytywanie plików...";
                 LoadingOverlay.Visibility = Visibility.Visible;
 
                 var newPages = new List<PageItem>();
@@ -230,21 +230,36 @@ namespace Segmento
                 foreach (var filePath in filePaths)
                 {
                     if (!File.Exists(filePath)) continue;
-                    if (!filePath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!IsSupportedFile(filePath)) continue;
 
                     var fileBytes = await File.ReadAllBytesAsync(filePath, token);
-                    int pageCount = await Task.Run(() => GetPageCount(fileBytes), token);
-                    var fileInfo = new FileInfo(filePath);
+                    var fileInfo  = new FileInfo(filePath);
 
-                    var source = new PdfSource(filePath, fileBytes, pageCount, fileInfo.Length);
-                    _sources.Add(source);
-
-                    for (int i = 1; i <= pageCount; i++)
+                    if (IsImageFile(filePath))
                     {
-                        var page = new PageItem(source.Id, source.FileName, i, source.Bytes);
+                        // Obraz PNG/JPG → traktujemy jako 1-stronicowe źródło
+                        var source = new PdfSource(filePath, fileBytes, 1, fileInfo.Length);
+                        _sources.Add(source);
+
+                        var page = new PageItem(source.Id, source.FileName, 1, source.Bytes);
                         page.PropertyChanged += Page_PropertyChanged;
                         page.PageIndex = _pages.Count + newPages.Count;
                         newPages.Add(page);
+                    }
+                    else
+                    {
+                        // PDF
+                        int pageCount = await Task.Run(() => GetPageCount(fileBytes), token);
+                        var source = new PdfSource(filePath, fileBytes, pageCount, fileInfo.Length);
+                        _sources.Add(source);
+
+                        for (int i = 1; i <= pageCount; i++)
+                        {
+                            var page = new PageItem(source.Id, source.FileName, i, source.Bytes);
+                            page.PropertyChanged += Page_PropertyChanged;
+                            page.PageIndex = _pages.Count + newPages.Count;
+                            newPages.Add(page);
+                        }
                     }
                 }
 
@@ -287,12 +302,19 @@ namespace Segmento
             else if (_sources.Count == 1)
             {
                 FileNameText.Text = _sources[0].FileName;
-                FileInfoText.Text = $"{_sources[0].PageCount} stron · {FormatFileSize(_sources[0].FileSize)}";
+                bool isImg = IsImageBytes(_sources[0].Bytes);
+                string typeLabel = isImg ? "obraz" : $"{_sources[0].PageCount} stron";
+                FileInfoText.Text = $"{typeLabel} · {FormatFileSize(_sources[0].FileSize)}";
             }
             else
             {
                 long totalSize = _sources.Sum(s => s.FileSize);
-                FileNameText.Text = $"{_sources.Count} plików PDF";
+                int imgCount  = _sources.Count(s => IsImageBytes(s.Bytes));
+                int pdfCount  = _sources.Count - imgCount;
+                string mix = imgCount > 0 && pdfCount > 0
+                    ? $"{pdfCount} PDF + {imgCount} obraz(ów)"
+                    : imgCount > 0 ? $"{imgCount} obraz(ów)" : $"{_sources.Count} plików PDF";
+                FileNameText.Text = mix;
                 FileInfoText.Text = $"{_pages.Count} stron łącznie · {FormatFileSize(totalSize)}";
             }
         }
@@ -336,7 +358,11 @@ namespace Segmento
                         if (cancellationToken.IsCancellationRequested) break;
                         try
                         {
-                            var bitmap = RenderPageToThumbnail(page.SourceBytes, page.OriginalPageNumber - 1);
+                            BitmapImage bitmap;
+                            if (IsImageBytes(page.SourceBytes))
+                                bitmap = LoadImageThumbnail(page.SourceBytes);
+                            else
+                                bitmap = RenderPageToThumbnail(page.SourceBytes, page.OriginalPageNumber - 1);
                             imgs.Add((page, bitmap));
                         }
                         catch { imgs.Add((page, null)); }
@@ -377,6 +403,35 @@ namespace Segmento
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.StreamSource = ms;
                 bitmap.DecodePixelWidth = 220;
+                bitmap.EndInit();
+            }
+            bitmap.Freeze();
+            return bitmap;
+        }
+
+        private static BitmapImage LoadImageThumbnail(byte[] imageBytes)
+        {
+            var bitmap = new BitmapImage();
+            using (var ms = new MemoryStream(imageBytes))
+            {
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = ms;
+                bitmap.DecodePixelWidth = 220;
+                bitmap.EndInit();
+            }
+            bitmap.Freeze();
+            return bitmap;
+        }
+
+        private static BitmapImage LoadImageForEditor(byte[] imageBytes)
+        {
+            var bitmap = new BitmapImage();
+            using (var ms = new MemoryStream(imageBytes))
+            {
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.StreamSource = ms;
                 bitmap.EndInit();
             }
             bitmap.Freeze();
@@ -615,7 +670,17 @@ namespace Segmento
         {
             try
             {
-                var preview = new PreviewWindow(page.SourceBytes, page.OriginalPageNumber) { Owner = this };
+                byte[] previewBytes = page.SourceBytes;
+                int    previewPage  = page.OriginalPageNumber;
+
+                // Dla stron-obrazów konwertuj do jednostroncowego PDF na podgląd
+                if (IsImageBytes(page.SourceBytes))
+                {
+                    previewBytes = ImageBytesToSinglePagePdf(page.SourceBytes);
+                    previewPage  = 1;
+                }
+
+                var preview = new PreviewWindow(previewBytes, previewPage) { Owner = this };
                 preview.Show();
             }
             catch (Exception ex)
@@ -698,8 +763,11 @@ namespace Segmento
             EditorOverlayCanvas.Children.Clear();
             EditorInkCanvas.Strokes.Clear();
 
-            var bitmap = await Task.Run(() =>
-                RenderPageToEditorBitmap(page.SourceBytes, page.OriginalPageNumber - 1));
+            BitmapImage bitmap;
+            if (IsImageBytes(page.SourceBytes))
+                bitmap = await Task.Run(() => LoadImageForEditor(page.SourceBytes));
+            else
+                bitmap = await Task.Run(() => RenderPageToEditorBitmap(page.SourceBytes, page.OriginalPageNumber - 1));
 
             EditorPageImage.Source = bitmap;
         }
@@ -1393,119 +1461,147 @@ namespace Segmento
         private async void SaveEditorPage_Click(object sender, RoutedEventArgs e)
         {
             if (_editorPage == null) return;
-        
+
+            var saveDialog = new SaveFileDialog
+            {
+                Filter     = "Dokument PDF (*.pdf)|*.pdf|Obraz PNG (*.png)|*.png",
+                Title      = "Zapisz edytowaną stronę",
+                DefaultExt = ".pdf",
+                FileName   = System.IO.Path.GetFileNameWithoutExtension(_editorPage.SourceFileName) + "_edytowany"
+            };
+            if (saveDialog.ShowDialog() != true) return;
+
             try
             {
                 SaveEditorBtn.IsEnabled = false;
-                StatusText.Text = "Zapisywanie zmian...";
-        
-                // Reset zoom przed renderowaniem
+                StatusText.Text = "Zapisywanie w jakości 300 DPI...";
+
                 double prevScale = EditorScale.ScaleX;
                 EditorScale.ScaleX = 1;
                 EditorScale.ScaleY = 1;
                 EditorCanvasGrid.UpdateLayout();
-        
-                // Pobierz oryginalną bitmapę w pełnej rozdzielczości (150 DPI)
-                var originalBitmap = EditorPageImage.Source as BitmapSource;
-                if (originalBitmap == null)
-                {
-                    StatusText.Text = "Błąd: brak załadowanej strony";
-                    return;
-                }
-        
-                // Renderuj w rozdzielczości oryginalnej bitmapy — nie w rozdzielczości ekranu
-                int renderW = originalBitmap.PixelWidth;
-                int renderH = originalBitmap.PixelHeight;
-        
-                if (renderW <= 0 || renderH <= 0)
-                {
-                    StatusText.Text = "Błąd: nieprawidłowe wymiary strony";
-                    return;
-                }
-        
-                var renderBitmap = new RenderTargetBitmap(
-                    renderW, renderH, 96, 96, PixelFormats.Pbgra32);
-        
-                var drawingVisual = new System.Windows.Media.DrawingVisual();
-                using (var ctx = drawingVisual.RenderOpen())
-                {
-                    var imageRect = new Rect(0, 0, renderW, renderH);
-        
-                    // Warstwa 1: oryginalna bitmapa bezpośrednio (bez pośredniego skalowania)
-                    ctx.DrawImage(originalBitmap, imageRect);
-        
-                    // Warstwa 2: InkCanvas (biała gumka) — rozciągnięty do pełnej rozdzielczości
-                    var inkVisual = new System.Windows.Media.VisualBrush(EditorInkCanvas)
-                    {
-                        Stretch = Stretch.Fill
-                    };
-                    ctx.DrawRectangle(inkVisual, null, imageRect);
-        
-                    // Warstwa 3: Canvas z tekstem i obrazkami — rozciągnięty do pełnej rozdzielczości
-                    var overlayVisual = new System.Windows.Media.VisualBrush(EditorOverlayCanvas)
-                    {
-                        Stretch = Stretch.Fill
-                    };
-                    ctx.DrawRectangle(overlayVisual, null, imageRect);
-                }
-                renderBitmap.Render(drawingVisual);
-        
-                // Przywróć zoom
-                EditorScale.ScaleX = prevScale;
-                EditorScale.ScaleY = prevScale;
-        
-                // Konwertuj do PNG
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
-                using var pngStream = new MemoryStream();
-                encoder.Save(pngStream);
-                byte[] pngBytes = pngStream.ToArray();
-        
-                // Capture przed Task.Run (dostęp do UI tylko na UI thread)
+
                 byte[] sourceBytes        = _editorPage.SourceBytes;
                 int    originalPageNumber = _editorPage.OriginalPageNumber;
-        
-                byte[] pdfBytes = await Task.Run(() =>
+                bool   isImgSrc           = IsImageBytes(sourceBytes);
+
+                // Render bazy w 300 DPI w tle
+                BitmapSource highResBitmap = await Task.Run(() =>
                 {
-                    // Pobierz oryginalne wymiary strony z PDF (zachowuje fizyczny rozmiar)
-                    double widthPt, heightPt;
-                    try
+                    if (isImgSrc)
+                        return (BitmapSource)LoadImageForEditor(sourceBytes);
+
+                    using var pdfStream = new MemoryStream(sourceBytes);
+                    var opts = new PDFtoImage.RenderOptions { Dpi = 300, WithAspectRatio = true };
+                    using var skBitmap = PDFtoImage.Conversion.ToImage(
+                        pdfStream, page: originalPageNumber - 1, options: opts);
+                    using var skImage = SkiaSharp.SKImage.FromBitmap(skBitmap);
+                    using var skData  = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+
+                    var bmp = new BitmapImage();
+                    using (var ms = new MemoryStream(skData.ToArray()))
                     {
-                        var srcMs = new MemoryStream();
-                        srcMs.Write(sourceBytes, 0, sourceBytes.Length);
-                        srcMs.Position = 0;
-                        using var srcDoc = PdfSharpPdfReader.Open(srcMs, PdfDocumentOpenMode.InformationOnly);
-                        var origPage = srcDoc.Pages[originalPageNumber - 1];
-                        widthPt  = origPage.Width.Point;
-                        heightPt = origPage.Height.Point;
+                        bmp.BeginInit();
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.StreamSource = ms;
+                        bmp.EndInit();
                     }
-                    catch
-                    {
-                        // Fallback: bitmapa renderowana przy 150 DPI
-                        widthPt  = renderW * 72.0 / 150.0;
-                        heightPt = renderH * 72.0 / 150.0;
-                    }
-        
-                    using var outStream = new MemoryStream();
-                    using var pdfDoc    = new PdfSharpPdfDocument();
-                    var pdfPage = pdfDoc.AddPage();
-                    pdfPage.Width  = PdfSharp.Drawing.XUnit.FromPoint(widthPt);
-                    pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
-        
-                    using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
-                    var imgStream = new MemoryStream();
-                    imgStream.Write(pngBytes, 0, pngBytes.Length);
-                    imgStream.Position = 0;
-                    using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
-                    gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
-        
-                    pdfDoc.Save(outStream, false);
-                    return outStream.ToArray();
+                    bmp.Freeze();
+                    return (BitmapSource)bmp;
                 });
-        
-                _editedPages[_editorPage] = pdfBytes;
-        
-                StatusText.Text = "Zapisano · Powrót do organizacji";
+
+                int renderW = highResBitmap.PixelWidth;
+                int renderH = highResBitmap.PixelHeight;
+
+                double scaleX = EditorPageImage.ActualWidth  > 0 ? renderW / EditorPageImage.ActualWidth  : 1;
+                double scaleY = EditorPageImage.ActualHeight > 0 ? renderH / EditorPageImage.ActualHeight : 1;
+
+                var renderBitmap  = new RenderTargetBitmap(renderW, renderH, 96, 96, PixelFormats.Pbgra32);
+                var drawingVisual = new System.Windows.Media.DrawingVisual();
+
+                using (var ctx = drawingVisual.RenderOpen())
+                {
+                    var fullRect = new Rect(0, 0, renderW, renderH);
+
+                    ctx.DrawImage(highResBitmap, fullRect);
+
+                    ctx.PushTransform(new ScaleTransform(scaleX, scaleY));
+                    ctx.DrawRectangle(new System.Windows.Media.VisualBrush(EditorInkCanvas)    { Stretch = Stretch.Fill }, null, new Rect(0, 0, renderW / scaleX, renderH / scaleY));
+                    ctx.Pop();
+
+                    ctx.PushTransform(new ScaleTransform(scaleX, scaleY));
+                    ctx.DrawRectangle(new System.Windows.Media.VisualBrush(EditorOverlayCanvas){ Stretch = Stretch.Fill }, null, new Rect(0, 0, renderW / scaleX, renderH / scaleY));
+                    ctx.Pop();
+                }
+                renderBitmap.Render(drawingVisual);
+
+                EditorScale.ScaleX = prevScale;
+                EditorScale.ScaleY = prevScale;
+
+                var pngEncoder = new PngBitmapEncoder();
+                pngEncoder.Frames.Add(BitmapFrame.Create(renderBitmap));
+                using var pngStream = new MemoryStream();
+                pngEncoder.Save(pngStream);
+                byte[] pngBytes = pngStream.ToArray();
+
+                string outputPath = saveDialog.FileName;
+                bool   savePng    = outputPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
+
+                if (savePng)
+                {
+                    await Task.Run(() => File.WriteAllBytes(outputPath, pngBytes));
+                    StatusText.Text = $"Zapisano PNG 300 DPI: {System.IO.Path.GetFileName(outputPath)}";
+                }
+                else
+                {
+                    byte[] pdfBytes = await Task.Run(() =>
+                    {
+                        double widthPt, heightPt;
+                        if (isImgSrc)
+                        {
+                            widthPt  = renderW * 72.0 / 300.0;
+                            heightPt = renderH * 72.0 / 300.0;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                var srcMs = new MemoryStream();
+                                srcMs.Write(sourceBytes, 0, sourceBytes.Length);
+                                srcMs.Position = 0;
+                                using var srcDoc = PdfSharpPdfReader.Open(srcMs, PdfDocumentOpenMode.InformationOnly);
+                                widthPt  = srcDoc.Pages[originalPageNumber - 1].Width.Point;
+                                heightPt = srcDoc.Pages[originalPageNumber - 1].Height.Point;
+                            }
+                            catch
+                            {
+                                widthPt  = renderW * 72.0 / 300.0;
+                                heightPt = renderH * 72.0 / 300.0;
+                            }
+                        }
+
+                        using var outStream = new MemoryStream();
+                        using var pdfDoc    = new PdfSharpPdfDocument();
+                        var pdfPage = pdfDoc.AddPage();
+                        pdfPage.Width  = PdfSharp.Drawing.XUnit.FromPoint(widthPt);
+                        pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
+
+                        using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
+                        var imgStream = new MemoryStream();
+                        imgStream.Write(pngBytes, 0, pngBytes.Length);
+                        imgStream.Position = 0;
+                        using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
+                        gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
+
+                        pdfDoc.Save(outStream, false);
+                        return outStream.ToArray();
+                    });
+
+                    _editedPages[_editorPage] = pdfBytes;
+                    await Task.Run(() => File.WriteAllBytes(outputPath, pdfBytes));
+                    StatusText.Text = $"Zapisano PDF 300 DPI: {System.IO.Path.GetFileName(outputPath)}";
+                }
+
                 NavOrganize.IsChecked = true;
             }
             catch (Exception ex)
@@ -1517,6 +1613,7 @@ namespace Segmento
                 SaveEditorBtn.IsEnabled = true;
             }
         }
+
 
         private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
@@ -1706,36 +1803,76 @@ namespace Segmento
 
             var saveDialog = new SaveFileDialog
             {
-                Filter = "Pliki PDF (*.pdf)|*.pdf",
-                Title = "Zapisz wybrane strony jako",
-                DefaultExt = ".pdf",
-                FileName = "Segmento_eksport.pdf"
+                Filter      = "Pliki PDF (*.pdf)|*.pdf|Obrazy PNG 300 DPI (*.png)|*.png",
+                Title       = "Zapisz wybrane strony jako",
+                DefaultExt  = ".pdf",
+                FileName    = "Segmento_eksport"
             };
 
             if (saveDialog.ShowDialog() != true) return;
+
+            bool exportPng = saveDialog.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
 
             try
             {
                 ExportBtn.IsEnabled = false;
                 ExportProgress.Visibility = Visibility.Visible;
                 ExportProgress.IsIndeterminate = true;
-                StatusText.Text = $"Eksportowanie {pagesToExport.Count} stron...";
+                int count = pagesToExport.Count;
+                StatusText.Text = $"Eksportowanie {count} stron...";
 
                 string outputPath = saveDialog.FileName;
-                var exportData = pagesToExport
-                    .Select(p => (
-                        p.SourceBytes,
-                        p.OriginalPageNumber,
-                        _editedPages.TryGetValue(p, out var eb) ? eb : (byte[]?)null
-                    ))
-                    .ToList();
-                int count = pagesToExport.Count;
 
-                await Task.Run(() => ExportMergedPdf(exportData, outputPath));
+                if (exportPng)
+                {
+                    // PNG — każda strona jako osobny plik
+                    string dir      = System.IO.Path.GetDirectoryName(outputPath) ?? ".";
+                    string baseName = System.IO.Path.GetFileNameWithoutExtension(outputPath);
+
+                    for (int pi = 0; pi < pagesToExport.Count; pi++)
+                    {
+                        var page        = pagesToExport[pi];
+                        bool hasEdited  = _editedPages.TryGetValue(page, out var editedPdfBytes);
+                        string filePath = System.IO.Path.Combine(dir, $"{baseName}_{pi + 1:D3}.png");
+
+                        byte[] pngBytes;
+                        if (hasEdited && editedPdfBytes != null)
+                        {
+                            // Edytowana strona jest już jako PDF → renderuj ją
+                            pngBytes = await Task.Run(() => RenderPageToPngBytes(editedPdfBytes, 0, 300));
+                        }
+                        else if (IsImageBytes(page.SourceBytes))
+                        {
+                            pngBytes = page.SourceBytes; // oryginał PNG/JPG
+                        }
+                        else
+                        {
+                            pngBytes = await Task.Run(() => RenderPageToPngBytes(page.SourceBytes, page.OriginalPageNumber - 1, 300));
+                        }
+
+                        await Task.Run(() => File.WriteAllBytes(filePath, pngBytes));
+                        StatusText.Text = $"Eksport PNG: {pi + 1}/{count}";
+                    }
+
+                    StatusText.Text = $"Wyeksportowano {count} plików PNG do: {dir}";
+                }
+                else
+                {
+                    // PDF — scalony
+                    var exportData = pagesToExport
+                        .Select(p => (
+                            p.SourceBytes,
+                            p.OriginalPageNumber,
+                            _editedPages.TryGetValue(p, out var eb) ? eb : (byte[]?)null
+                        ))
+                        .ToList();
+
+                    await Task.Run(() => ExportMergedPdf(exportData, outputPath));
+                    StatusText.Text = $"Wyeksportowano {count} stron do: {System.IO.Path.GetFileName(outputPath)}";
+                }
 
                 ExportProgress.Visibility = Visibility.Collapsed;
                 ExportProgress.IsIndeterminate = false;
-                StatusText.Text = $"Wyeksportowano {count} stron do: {System.IO.Path.GetFileName(outputPath)}";
             }
             catch (Exception ex)
             {
@@ -1771,7 +1908,19 @@ namespace Segmento
                 foreach (var (sourceBytes, pageNumber, editedBytes) in pages)
                 {
                     byte[] bytesToUse = editedBytes ?? sourceBytes;
-                    int pageToUse = editedBytes != null ? 1 : pageNumber;
+                    int    pageToUse  = editedBytes != null ? 1 : pageNumber;
+
+                    // Strona-obraz (PNG/JPG) → konwertuj do strony PDF
+                    if (IsImageBytes(bytesToUse))
+                    {
+                        byte[] imgPdfBytes = ImageBytesToSinglePagePdf(bytesToUse);
+                        var imgMs = new MemoryStream();
+                        imgMs.Write(imgPdfBytes, 0, imgPdfBytes.Length);
+                        imgMs.Position = 0;
+                        using var imgDoc = PdfSharpPdfReader.Open(imgMs, PdfDocumentOpenMode.Import);
+                        outputDocument.AddPage(imgDoc.Pages[0]);
+                        continue;
+                    }
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
                     {
@@ -1796,7 +1945,7 @@ namespace Segmento
 
         private static void ExportMergedUsingIText(List<(byte[] SourceBytes, int PageNumber, byte[]? EditedBytes)> pages, string outputPath)
         {
-            using var writer = new ITextPdfWriter(outputPath);
+            using var writer    = new ITextPdfWriter(outputPath);
             using var outputDoc = new ITextPdfDocument(writer);
 
             var cache = new Dictionary<byte[], ITextPdfDocument>();
@@ -1805,7 +1954,14 @@ namespace Segmento
                 foreach (var (sourceBytes, pageNumber, editedBytes) in pages)
                 {
                     byte[] bytesToUse = editedBytes ?? sourceBytes;
-                    int pageToUse = editedBytes != null ? 1 : pageNumber;
+                    int    pageToUse  = editedBytes != null ? 1 : pageNumber;
+
+                    // Strona-obraz → konwertuj przez PdfSharp do PDF
+                    if (IsImageBytes(bytesToUse))
+                    {
+                        bytesToUse = ImageBytesToSinglePagePdf(bytesToUse);
+                        pageToUse  = 1;
+                    }
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
                     {
@@ -1847,6 +2003,68 @@ namespace Segmento
             int order = 0;
             while (size >= 1024 && order < sizes.Length - 1) { order++; size /= 1024; }
             return $"{size:0.##} {sizes[order]}";
+        }
+
+        // ── Wykrywanie typu pliku ──────────────────────────────────────────
+
+        private static bool IsSupportedFile(string path)
+        {
+            return path.EndsWith(".pdf",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".png",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsImageFile(string path)
+        {
+            return path.EndsWith(".png",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpg",  StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsImageBytes(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length < 4) return false;
+            // PNG: 89 50 4E 47
+            if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return true;
+            // JPEG: FF D8
+            if (bytes[0] == 0xFF && bytes[1] == 0xD8) return true;
+            return false;
+        }
+
+        // ── Konwersja obraz → jednostronicowy PDF (PdfSharp) ─────────────
+
+        private static byte[] ImageBytesToSinglePagePdf(byte[] imageBytes)
+        {
+            using var imgStream = new MemoryStream();
+            imgStream.Write(imageBytes, 0, imageBytes.Length);
+            imgStream.Position = 0;
+
+            using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
+
+            using var outStream = new MemoryStream();
+            using var pdfDoc    = new PdfSharpPdfDocument();
+            var page = pdfDoc.AddPage();
+            page.Width  = PdfSharp.Drawing.XUnit.FromPoint(xImage.PointWidth);
+            page.Height = PdfSharp.Drawing.XUnit.FromPoint(xImage.PointHeight);
+
+            using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page);
+            gfx.DrawImage(xImage, 0, 0, xImage.PointWidth, xImage.PointHeight);
+
+            pdfDoc.Save(outStream, false);
+            return outStream.ToArray();
+        }
+
+        // ── Render strony PDF do PNG bytes (300 DPI) ─────────────────────
+
+        private static byte[] RenderPageToPngBytes(byte[] pdfBytes, int pageIndex, int dpi)
+        {
+            using var pdfStream = new MemoryStream(pdfBytes);
+            var opts = new PDFtoImage.RenderOptions { Dpi = dpi, WithAspectRatio = true };
+            using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: pageIndex, options: opts);
+            using var skImage  = SkiaSharp.SKImage.FromBitmap(skBitmap);
+            using var skData   = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            return skData.ToArray();
         }
 
         #endregion
