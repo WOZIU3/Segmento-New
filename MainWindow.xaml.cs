@@ -764,7 +764,20 @@ namespace Segmento
         {
             switch (_currentTool)
             {
-
+                case EditorTool.Eraser:
+                    EditorInkCanvas.DefaultDrawingAttributes = new System.Windows.Ink.DrawingAttributes
+                    {
+                        Color = Colors.White,
+                        Width = 25,
+                        Height = 25,
+                        StylusTip = System.Windows.Ink.StylusTip.Rectangle,
+                        IsHighlighter = false
+                    };
+                    EditorInkCanvas.EditingMode = InkCanvasEditingMode.Ink;
+                    EditorInkCanvas.IsHitTestVisible = true;
+                    EditorInkCanvas.Cursor = Cursors.Cross;
+                    break;
+        
                 default:
                     EditorInkCanvas.EditingMode = InkCanvasEditingMode.None;
                     EditorInkCanvas.IsHitTestVisible = false;
@@ -1731,10 +1744,13 @@ namespace Segmento
                     int pageToUse = editedBytes != null ? 1 : pageNumber;
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
-                    {
-                        var ms = new MemoryStream(bytesToUse);
-                        srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
-                        cache[bytesToUse] = srcDoc;
+            {
+                var ms = new MemoryStream();
+                ms.Write(bytesToUse, 0, bytesToUse.Length);
+                ms.Position = 0;
+                srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                cache[bytesToUse] = srcDoc;
+            }
                     }
 
                     if (pageToUse >= 1 && pageToUse <= srcDoc.PageCount)
@@ -1763,11 +1779,13 @@ namespace Segmento
                     int pageToUse = editedBytes != null ? 1 : pageNumber;
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
-                    {
-                        var reader = new ITextPdfReader(new MemoryStream(bytesToUse));
-                        reader.SetUnethicalReading(true);
-                        srcDoc = new ITextPdfDocument(reader);
-                        cache[bytesToUse] = srcDoc;
+            {
+                var ms = new MemoryStream();
+                ms.Write(bytesToUse, 0, bytesToUse.Length);
+                ms.Position = 0;
+                srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                cache[bytesToUse] = srcDoc;
+            }
                     }
                     srcDoc.CopyPagesTo(pageToUse, pageToUse, outputDoc);
                 }
