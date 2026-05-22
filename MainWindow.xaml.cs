@@ -1083,24 +1083,31 @@ namespace Segmento
             sizeRow.Children.Add(incBtn);
             sizeRow.Children.Add(decBtn);
         
-            // Okrągłe próbki kolorów
-            var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0) };
-        
-            var colorDefs = new System.Collections.Generic.List<(Color Col, Brush Brush)>
+            // Okrągłe próbki kolorów — dwie tablice zamiast krotek
+            var swatchColors = new Color[]
             {
-                (Colors.White,            Brushes.White),
-                (Colors.Black,            Brushes.Black),
-                (Colors.Red,              Brushes.Red),
-                (Color.FromRgb(30,144,255), new SolidColorBrush(Color.FromRgb(30, 144, 255)))
+                Colors.White,
+                Colors.Black,
+                Colors.Red,
+                Color.FromRgb(30, 144, 255)
+            };
+            var swatchBrushes = new Brush[]
+            {
+                Brushes.White,
+                Brushes.Black,
+                Brushes.Red,
+                new SolidColorBrush(Color.FromRgb(30, 144, 255))
             };
         
-            foreach (var def in colorDefs)
+            var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0) };
+            for (int ci = 0; ci < swatchColors.Length; ci++)
             {
-                var localBrush = def.Brush;
+                var localBrush  = swatchBrushes[ci];
+                var localColor  = swatchColors[ci];
                 var swatch = new Ellipse
                 {
                     Width = 14, Height = 14,
-                    Fill            = new SolidColorBrush(def.Col),
+                    Fill            = new SolidColorBrush(localColor),
                     Stroke          = new SolidColorBrush(Color.FromRgb(90, 90, 90)),
                     StrokeThickness = 1,
                     Margin          = new Thickness(3, 0, 3, 0),
