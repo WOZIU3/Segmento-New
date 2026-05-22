@@ -1399,43 +1399,49 @@ namespace Segmento
                 SaveEditorBtn.IsEnabled = false;
                 StatusText.Text = "Zapisywanie zmian...";
         
-                // Reset zoom przed renderowaniem (UI thread)
+                // Reset zoom przed renderowaniem
                 double prevScale = EditorScale.ScaleX;
                 EditorScale.ScaleX = 1;
                 EditorScale.ScaleY = 1;
                 EditorCanvasGrid.UpdateLayout();
         
-                // Renderuj na UI thread
-                int renderW = (int)EditorPageImage.ActualWidth;
-                int renderH = (int)EditorPageImage.ActualHeight;
+                // Pobierz oryginalną bitmapę w pełnej rozdzielczości (150 DPI)
+                var originalBitmap = EditorPageImage.Source as BitmapSource;
+                if (originalBitmap == null)
+                {
+                    StatusText.Text = "Błąd: brak załadowanej strony";
+                    return;
+                }
+        
+                // Renderuj w rozdzielczości oryginalnej bitmapy — nie w rozdzielczości ekranu
+                int renderW = originalBitmap.PixelWidth;
+                int renderH = originalBitmap.PixelHeight;
         
                 if (renderW <= 0 || renderH <= 0)
                 {
-                    StatusText.Text = "Błąd: brak załadowanej strony";
+                    StatusText.Text = "Błąd: nieprawidłowe wymiary strony";
                     return;
                 }
         
                 var renderBitmap = new RenderTargetBitmap(
                     renderW, renderH, 96, 96, PixelFormats.Pbgra32);
         
-                // Renderuj każdą warstwę osobno względem Image
                 var drawingVisual = new System.Windows.Media.DrawingVisual();
                 using (var ctx = drawingVisual.RenderOpen())
                 {
                     var imageRect = new Rect(0, 0, renderW, renderH);
         
-                    // Warstwa 1: obraz PDF
-                    var imgBrush = new ImageBrush(EditorPageImage.Source as BitmapSource);
-                    ctx.DrawRectangle(imgBrush, null, imageRect);
+                    // Warstwa 1: oryginalna bitmapa bezpośrednio (bez pośredniego skalowania)
+                    ctx.DrawImage(originalBitmap, imageRect);
         
-                    // Warstwa 2: InkCanvas (białe kreski gumki + ewentualne stroki)
+                    // Warstwa 2: InkCanvas (biała gumka) — rozciągnięty do pełnej rozdzielczości
                     var inkVisual = new System.Windows.Media.VisualBrush(EditorInkCanvas)
                     {
                         Stretch = Stretch.Fill
                     };
                     ctx.DrawRectangle(inkVisual, null, imageRect);
         
-                    // Warstwa 3: Canvas z tekstem i obrazkami
+                    // Warstwa 3: Canvas z tekstem i obrazkami — rozciągnięty do pełnej rozdzielczości
                     var overlayVisual = new System.Windows.Media.VisualBrush(EditorOverlayCanvas)
                     {
                         Stretch = Stretch.Fill
@@ -1448,33 +1454,51 @@ namespace Segmento
                 EditorScale.ScaleX = prevScale;
                 EditorScale.ScaleY = prevScale;
         
-                // Konwertuj do PNG na UI thread, zamroź przed przekazaniem do Task.Run
+                // Konwertuj do PNG
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(renderBitmap));
                 using var pngStream = new MemoryStream();
                 encoder.Save(pngStream);
                 byte[] pngBytes = pngStream.ToArray();
         
-                // Tworzenie PDF w tle — PdfSharp, tylko byte[], zero obiektów UI
+                // Capture przed Task.Run (dostęp do UI tylko na UI thread)
+                byte[] sourceBytes        = _editorPage.SourceBytes;
+                int    originalPageNumber = _editorPage.OriginalPageNumber;
+        
                 byte[] pdfBytes = await Task.Run(() =>
                 {
+                    // Pobierz oryginalne wymiary strony z PDF (zachowuje fizyczny rozmiar)
+                    double widthPt, heightPt;
+                    try
+                    {
+                        var srcMs = new MemoryStream();
+                        srcMs.Write(sourceBytes, 0, sourceBytes.Length);
+                        srcMs.Position = 0;
+                        using var srcDoc = PdfSharpPdfReader.Open(srcMs, PdfDocumentOpenMode.InformationOnly);
+                        var origPage = srcDoc.Pages[originalPageNumber - 1];
+                        widthPt  = origPage.Width.Point;
+                        heightPt = origPage.Height.Point;
+                    }
+                    catch
+                    {
+                        // Fallback: bitmapa renderowana przy 150 DPI
+                        widthPt  = renderW * 72.0 / 150.0;
+                        heightPt = renderH * 72.0 / 150.0;
+                    }
+        
                     using var outStream = new MemoryStream();
-                    using var pdfDoc = new PdfSharpPdfDocument();
+                    using var pdfDoc    = new PdfSharpPdfDocument();
                     var pdfPage = pdfDoc.AddPage();
-
-                    // Piksele (96 dpi) → punkty PDF (72 dpi)
-                    double widthPt  = renderW * 72.0 / 96.0;
-                    double heightPt = renderH * 72.0 / 96.0;
                     pdfPage.Width  = PdfSharp.Drawing.XUnit.FromPoint(widthPt);
                     pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
-
+        
                     using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
                     var imgStream = new MemoryStream();
                     imgStream.Write(pngBytes, 0, pngBytes.Length);
                     imgStream.Position = 0;
                     using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
                     gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
-
+        
                     pdfDoc.Save(outStream, false);
                     return outStream.ToArray();
                 });
