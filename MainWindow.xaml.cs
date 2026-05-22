@@ -1469,7 +1469,9 @@ namespace Segmento
                     pdfPage.Height = PdfSharp.Drawing.XUnit.FromPoint(heightPt);
 
                     using var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(pdfPage);
-                    using var imgStream = new MemoryStream(pngBytes);
+                    var imgStream = new MemoryStream();
+                    imgStream.Write(pngBytes, 0, pngBytes.Length);
+                    imgStream.Position = 0;
                     using var xImage = PdfSharp.Drawing.XImage.FromStream(imgStream);
                     gfx.DrawImage(xImage, 0, 0, widthPt, heightPt);
 
