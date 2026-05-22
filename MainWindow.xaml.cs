@@ -738,26 +738,16 @@ namespace Segmento
 
             ApplyToolToInkCanvas();
 
-        if (_currentTool == EditorTool.Image)
-        {
-            OpenImageFromDialog();
-            ToolImageBtn.IsChecked = false;
-            _currentTool = EditorTool.None;
-            ApplyToolToInkCanvas();
-        }
-        
-        if (_currentTool == EditorTool.Eraser)
-        {
-            EditorOverlayCanvas.Children.Clear();
-            EditorInkCanvas.Strokes.Clear();
-            ToolEraserBtn.IsChecked = false;
-            _currentTool = EditorTool.None;
-            ApplyToolToInkCanvas();
-            StatusText.Text = "Usunięto wszystkie naniesione zmiany";
-        }
-        
-        EditorScrollViewer.Cursor = _currentTool == EditorTool.None
-            ? Cursors.SizeAll : Cursors.Arrow;
+            if (_currentTool == EditorTool.Image)
+            {
+                OpenImageFromDialog();
+                ToolImageBtn.IsChecked = false;
+                _currentTool = EditorTool.None;
+                ApplyToolToInkCanvas();
+            }
+
+            EditorScrollViewer.Cursor = _currentTool == EditorTool.None
+                ? Cursors.SizeAll : Cursors.Arrow;
         }
 
         private void ApplyToolToInkCanvas()
@@ -947,8 +937,8 @@ namespace Segmento
                 }), System.Windows.Threading.DispatcherPriority.Input);
             }
 
-            tb.GotFocus  += (_, _) => Activate();
-            tb.LostFocus += (_, _) => Deactivate();
+            tb.GotFocus  += (s, ev) => Activate();
+            tb.LostFocus += (s, ev) => Deactivate();
 
             container.MouseLeftButtonDown += (s, ev) =>
             {
@@ -1054,7 +1044,7 @@ namespace Segmento
             Canvas.SetLeft(container, left);
             Canvas.SetTop (container, top);
             EditorOverlayCanvas.Children.Add(container);
-            container.Loaded += (_, _) => tb.Focus();
+            container.Loaded += (s, ev) => tb.Focus();
         }
 
         private Popup BuildTextToolbar(TextBox tb, Grid container)
@@ -1298,15 +1288,16 @@ namespace Segmento
         {
             // ── Przyciski przezroczystości ──────────────────────────────────
             var opacityRow = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (var (label, op) in new (string, double)[]
+
+            string[] opLabels = { "25%", "50%", "75%", "100%" };
+            double[] opValues = { 0.25, 0.50, 0.75, 1.0 };
+
+            for (int oi = 0; oi < opLabels.Length; oi++)
             {
-                ("25%", 0.25), ("50%", 0.50), ("75%", 0.75), ("100%", 1.0)
-            })
-            {
-                double opacity = op;
+                double opacity = opValues[oi];
                 var btn = new Button
                 {
-                    Content = label,
+                    Content = opLabels[oi],
                     Focusable = false,
                     Padding = new Thickness(6, 2, 6, 2),
                     Margin  = new Thickness(1, 0, 1, 0),
@@ -1315,7 +1306,7 @@ namespace Segmento
                     BorderThickness = new Thickness(0),
                     FontSize = 11, Cursor = Cursors.Hand
                 };
-                btn.Click += (_, _) => img.Opacity = opacity;
+                btn.Click += (s, ev) => img.Opacity = opacity;
                 opacityRow.Children.Add(btn);
             }
 
@@ -1332,7 +1323,7 @@ namespace Segmento
                 FontSize = 12, FontWeight = FontWeights.Bold,
                 Cursor = Cursors.Hand
             };
-            delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
+            delBtn.Click += (s, ev) => EditorOverlayCanvas.Children.Remove(container);
 
             Border Sep() => new Border
             {
@@ -1757,13 +1748,12 @@ namespace Segmento
                     int pageToUse = editedBytes != null ? 1 : pageNumber;
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
-            {
-                var ms = new MemoryStream();
-                ms.Write(bytesToUse, 0, bytesToUse.Length);
-                ms.Position = 0;
-                srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
-                cache[bytesToUse] = srcDoc;
-            }
+                    {
+                        var ms = new MemoryStream();
+                        ms.Write(bytesToUse, 0, bytesToUse.Length);
+                        ms.Position = 0;
+                        srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
+                        cache[bytesToUse] = srcDoc;
                     }
 
                     if (pageToUse >= 1 && pageToUse <= srcDoc.PageCount)
@@ -1792,13 +1782,14 @@ namespace Segmento
                     int pageToUse = editedBytes != null ? 1 : pageNumber;
 
                     if (!cache.TryGetValue(bytesToUse, out var srcDoc))
-            {
-                var ms = new MemoryStream();
-                ms.Write(bytesToUse, 0, bytesToUse.Length);
-                ms.Position = 0;
-                srcDoc = PdfSharpPdfReader.Open(ms, PdfDocumentOpenMode.Import);
-                cache[bytesToUse] = srcDoc;
-            }
+                    {
+                        var ms = new MemoryStream();
+                        ms.Write(bytesToUse, 0, bytesToUse.Length);
+                        ms.Position = 0;
+                        var reader = new ITextPdfReader(ms);
+                        reader.SetUnethicalReading(true);
+                        srcDoc = new ITextPdfDocument(reader);
+                        cache[bytesToUse] = srcDoc;
                     }
                     srcDoc.CopyPagesTo(pageToUse, pageToUse, outputDoc);
                 }
