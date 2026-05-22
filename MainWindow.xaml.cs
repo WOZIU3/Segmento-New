@@ -861,7 +861,7 @@ namespace Segmento
             var bbox = new Border
             {
                 BorderBrush      = new SolidColorBrush(Color.FromRgb(74, 144, 226)),
-                BorderThickness  = new Thickness(1.5),
+                BorderThickness  = new Thickness(1),
                 Background       = Brushes.Transparent,
                 Margin           = new Thickness(HH),
                 IsHitTestVisible = false
@@ -1046,98 +1046,91 @@ namespace Segmento
 
         private Popup BuildTextToolbar(TextBox tb, Grid container)
         {
-            // ── Przyciski rozmiaru czcionki ────────────────────────────────
-            var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
-            foreach (int sz in new[] { 10, 12, 14, 18, 24, 32, 48 })
+            // A▲ / A▼ — skalowanie czcionki
+            Button MakeSizeBtn(string label, int delta)
             {
-                int s = sz;
-                var btn = new Button
-            {
-                Content = $"{s}",
-                Focusable = false,
-                Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(1, 0, 1, 0),
-                Foreground = Brushes.White, Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0), FontSize = 11, Cursor = Cursors.Hand
-            };
-                btn.Click += (_, _) => { tb.FontSize = s; tb.Focus(); };
-                sizeRow.Children.Add(btn);
+                var b = new Button
+                {
+                    Content = label, Focusable = false,
+                    Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(1, 0, 1, 0),
+                    Foreground = Brushes.White, Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0), FontSize = 12, Cursor = Cursors.Hand
+                };
+                b.Click += (_, _) => { tb.FontSize = Math.Clamp(tb.FontSize + delta, 8, 72); tb.Focus(); };
+                return b;
             }
-
-            // ── Kolorowe próbki ────────────────────────────────────────────
-            var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(6,0,0,0) };
+        
+            var sizeRow = new StackPanel { Orientation = Orientation.Horizontal };
+            sizeRow.Children.Add(MakeSizeBtn("A▲", +2));
+            sizeRow.Children.Add(MakeSizeBtn("A▼", -2));
+        
+            // Okrągłe próbki kolorów: Biały, Czarny, Czerwony, Niebieski
+            var colorRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 0, 0, 0) };
             foreach (var (col, brush) in new (Color, Brush)[]
             {
-                (Colors.White,   Brushes.White),
-                (Colors.Black,   Brushes.Black),
-                (Colors.Red,     Brushes.Red),
-                (Color.FromRgb(30,144,255), Brushes.DodgerBlue),
-                (Colors.Gold,    Brushes.Gold),
-                (Colors.LimeGreen, Brushes.LimeGreen)
+                (Colors.White,            Brushes.White),
+                (Colors.Black,            Brushes.Black),
+                (Colors.Red,              Brushes.Red),
+                (Color.FromRgb(30,144,255), new SolidColorBrush(Color.FromRgb(30, 144, 255)))
             })
             {
-                var b = brush; var c = col;
-                var swatch = new Border
+                var b = brush;
+                var swatch = new Ellipse
                 {
                     Width = 14, Height = 14,
-                    Background      = new SolidColorBrush(c),
-                    BorderBrush     = new SolidColorBrush(Color.FromRgb(80,80,80)),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius    = new CornerRadius(3),
-                    Margin          = new Thickness(2,0,2,0),
+                    Fill            = new SolidColorBrush(col),
+                    Stroke          = new SolidColorBrush(Color.FromRgb(90, 90, 90)),
+                    StrokeThickness = 1,
+                    Margin          = new Thickness(3, 0, 3, 0),
                     Cursor          = Cursors.Hand
                 };
                 swatch.MouseLeftButtonDown += (_, _) => { tb.Foreground = b; tb.Focus(); };
                 colorRow.Children.Add(swatch);
             }
-
-            // ── Przycisk usuń ──────────────────────────────────────────────
+        
+            // Przycisk Kosz (Segoe MDL2 Assets)
             var delBtn = new Button
             {
-                Content = "✕", Padding = new Thickness(7,2,7,2), Margin = new Thickness(6,0,0,0),
-                Focusable = false,
-                Foreground = new SolidColorBrush(Color.FromRgb(255,80,80)),
+                Content = "\uE74D",
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontSize = 13, Focusable = false,
+                Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(4, 0, 0, 0),
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 80, 80)),
                 Background = Brushes.Transparent, BorderThickness = new Thickness(0),
-                FontSize = 12, FontWeight = FontWeights.Bold, Cursor = Cursors.Hand
+                Cursor = Cursors.Hand
             };
             delBtn.Click += (_, _) => EditorOverlayCanvas.Children.Remove(container);
-
+        
             Border Sep() => new Border
             {
-                Width = 1, Margin = new Thickness(5,3,5,3),
-                Background = new SolidColorBrush(Color.FromRgb(70,70,70))
+                Width = 1, Margin = new Thickness(4, 3, 4, 3),
+                Background = new SolidColorBrush(Color.FromRgb(70, 70, 70))
             };
-
+        
             var toolStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            toolStack.Children.Add(new TextBlock
-            {
-                Text = "A", Foreground = new SolidColorBrush(Color.FromRgb(160,160,160)),
-                VerticalAlignment = VerticalAlignment.Center, FontSize = 11, Margin = new Thickness(4,0,2,0)
-            });
             toolStack.Children.Add(sizeRow);
             toolStack.Children.Add(Sep());
             toolStack.Children.Add(colorRow);
             toolStack.Children.Add(Sep());
             toolStack.Children.Add(delBtn);
-
+        
             var toolBorder = new Border
             {
-                Background      = new SolidColorBrush(Color.FromRgb(30,30,30)),
+                Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                 CornerRadius    = new CornerRadius(6),
-                BorderBrush     = new SolidColorBrush(Color.FromRgb(51,51,51)),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(51, 51, 51)),
                 BorderThickness = new Thickness(1),
-                Padding         = new Thickness(4,5,4,5),
+                Padding         = new Thickness(6, 6, 6, 6),
                 Child           = toolStack
             };
-
+        
             return new Popup
             {
-                Placement = PlacementMode.Bottom, VerticalOffset = 6,
-                AllowsTransparency = true, StaysOpen = true,
+                Placement = PlacementMode.Bottom, VerticalOffset = 8,
+                AllowsTransparency = true, StaysOpen = false,
                 IsOpen = false, Child = toolBorder
             };
         }
-
-
         private void OpenImageFromDialog()
         {
             var dlg = new OpenFileDialog
