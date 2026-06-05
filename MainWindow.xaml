@@ -892,7 +892,13 @@
                                                                               IsChecked="{Binding IsDropDownOpen, Mode=TwoWay,
                                                                                   RelativeSource={RelativeSource TemplatedParent}}"
                                                                               Background="Transparent"
-                                                                              BorderThickness="0"/>
+                                                                              BorderThickness="0">
+                                                                    <ToggleButton.Template>
+                                                                        <ControlTemplate TargetType="ToggleButton">
+                                                                            <Border Background="Transparent"/>
+                                                                        </ControlTemplate>
+                                                                    </ToggleButton.Template>
+                                                                </ToggleButton>
                                                                 <Popup IsOpen="{TemplateBinding IsDropDownOpen}"
                                                                        AllowsTransparency="True"
                                                                        Placement="Bottom"
