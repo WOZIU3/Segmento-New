@@ -1789,7 +1789,40 @@ namespace Segmento
             ExportBtn.IsEnabled = _organizePages.Count > 0 || _pages.Any(p => p.IsSelected);
         }
 
-        private async void Export_Click(object sender, RoutedEventArgs e)
+        private void Export_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn) return;
+
+            // Stylizacja zgodna z ciemnym motywem aplikacji
+            var itemStyle = new Style(typeof(MenuItem));
+            itemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
+            itemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty,
+                new SolidColorBrush(Color.FromRgb(245, 245, 245))));
+            itemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 13.0));
+            itemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty,
+                new Thickness(16, 10, 16, 10)));
+
+            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = itemStyle };
+            itemAll.Click += ExportAll_Click;
+
+            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = itemStyle };
+            itemSep.Click += ExportSeparate_Click;
+
+            var menu = new ContextMenu
+            {
+                PlacementTarget = btn,
+                Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                VerticalOffset  = 4,
+                Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(63, 63, 68)),
+                BorderThickness = new Thickness(1)
+            };
+            menu.Items.Add(itemAll);
+            menu.Items.Add(itemSep);
+            menu.IsOpen = true;
+        }
+
+        private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
             List<PageItem> pagesToExport = _organizePages.Count > 0
                 ? _organizePages.ToList()
@@ -1803,15 +1836,12 @@ namespace Segmento
 
             var saveDialog = new SaveFileDialog
             {
-                Filter      = "Pliki PDF (*.pdf)|*.pdf|Obrazy PNG 300 DPI (*.png)|*.png",
-                Title       = "Zapisz wybrane strony jako",
-                DefaultExt  = ".pdf",
-                FileName    = "Segmento_eksport"
+                Filter     = "Pliki PDF (*.pdf)|*.pdf",
+                Title      = "Zapisz wszystkie strony jako jeden plik PDF",
+                DefaultExt = ".pdf",
+                FileName   = "Segmento_eksport.pdf"
             };
-
             if (saveDialog.ShowDialog() != true) return;
-
-            bool exportPng = saveDialog.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase);
 
             try
             {
@@ -1819,65 +1849,93 @@ namespace Segmento
                 ExportProgress.Visibility = Visibility.Visible;
                 ExportProgress.IsIndeterminate = true;
                 int count = pagesToExport.Count;
-                StatusText.Text = $"Eksportowanie {count} stron...";
+                StatusText.Text = $"Eksportowanie {count} stron do jednego pliku...";
 
                 string outputPath = saveDialog.FileName;
+                var exportData = pagesToExport
+                    .Select(p => (
+                        p.SourceBytes,
+                        p.OriginalPageNumber,
+                        _editedPages.TryGetValue(p, out var eb) ? eb : (byte[]?)null))
+                    .ToList();
 
-                if (exportPng)
-                {
-                    // PNG — każda strona jako osobny plik
-                    string dir      = System.IO.Path.GetDirectoryName(outputPath) ?? ".";
-                    string baseName = System.IO.Path.GetFileNameWithoutExtension(outputPath);
-
-                    for (int pi = 0; pi < pagesToExport.Count; pi++)
-                    {
-                        var page        = pagesToExport[pi];
-                        bool hasEdited  = _editedPages.TryGetValue(page, out var editedPdfBytes);
-                        string filePath = System.IO.Path.Combine(dir, $"{baseName}_{pi + 1:D3}.png");
-
-                        byte[] pngBytes;
-                        if (hasEdited && editedPdfBytes != null)
-                        {
-                            // Edytowana strona jest już jako PDF → renderuj ją
-                            pngBytes = await Task.Run(() => RenderPageToPngBytes(editedPdfBytes, 0, 300));
-                        }
-                        else if (IsImageBytes(page.SourceBytes))
-                        {
-                            pngBytes = page.SourceBytes; // oryginał PNG/JPG
-                        }
-                        else
-                        {
-                            pngBytes = await Task.Run(() => RenderPageToPngBytes(page.SourceBytes, page.OriginalPageNumber - 1, 300));
-                        }
-
-                        await Task.Run(() => File.WriteAllBytes(filePath, pngBytes));
-                        StatusText.Text = $"Eksport PNG: {pi + 1}/{count}";
-                    }
-
-                    StatusText.Text = $"Wyeksportowano {count} plików PNG do: {dir}";
-                }
-                else
-                {
-                    // PDF — scalony
-                    var exportData = pagesToExport
-                        .Select(p => (
-                            p.SourceBytes,
-                            p.OriginalPageNumber,
-                            _editedPages.TryGetValue(p, out var eb) ? eb : (byte[]?)null
-                        ))
-                        .ToList();
-
-                    await Task.Run(() => ExportMergedPdf(exportData, outputPath));
-                    StatusText.Text = $"Wyeksportowano {count} stron do: {System.IO.Path.GetFileName(outputPath)}";
-                }
+                await Task.Run(() => ExportMergedPdf(exportData, outputPath));
 
                 ExportProgress.Visibility = Visibility.Collapsed;
                 ExportProgress.IsIndeterminate = false;
+                StatusText.Text = $"Wyeksportowano {count} stron do: {System.IO.Path.GetFileName(outputPath)}";
             }
             catch (Exception ex)
             {
                 ExportProgress.Visibility = Visibility.Collapsed;
                 ExportProgress.IsIndeterminate = false;
+                StatusText.Text = $"Błąd eksportu: {GetFriendlyErrorMessage(ex)}";
+            }
+            finally
+            {
+                ExportBtn.IsEnabled = true;
+            }
+        }
+
+        private async void ExportSeparate_Click(object sender, RoutedEventArgs e)
+        {
+            List<PageItem> pagesToExport = _organizePages.Count > 0
+                ? _organizePages.ToList()
+                : _pages.Where(p => p.IsSelected).ToList();
+
+            if (pagesToExport.Count == 0)
+            {
+                StatusText.Text = "Zaznacz przynajmniej jedną stronę do eksportu";
+                return;
+            }
+
+            var saveDialog = new SaveFileDialog
+            {
+                Filter     = "Pliki PDF (*.pdf)|*.pdf",
+                Title      = "Podaj nazwę bazową — każda strona zostanie zapisana osobno",
+                DefaultExt = ".pdf",
+                FileName   = "Segmento_strona"
+            };
+            if (saveDialog.ShowDialog() != true) return;
+
+            string dir      = System.IO.Path.GetDirectoryName(saveDialog.FileName) ?? ".";
+            string baseName = System.IO.Path.GetFileNameWithoutExtension(saveDialog.FileName);
+
+            try
+            {
+                ExportBtn.IsEnabled = false;
+                ExportProgress.Visibility = Visibility.Visible;
+                ExportProgress.IsIndeterminate = false;
+                ExportProgress.Minimum = 0;
+                ExportProgress.Maximum = pagesToExport.Count;
+                ExportProgress.Value   = 0;
+
+                int count = pagesToExport.Count;
+                StatusText.Text = $"Eksportowanie {count} osobnych plików PDF...";
+
+                for (int pi = 0; pi < pagesToExport.Count; pi++)
+                {
+                    var    page    = pagesToExport[pi];
+                    string outPath = System.IO.Path.Combine(dir, $"{baseName}_{pi + 1:D3}.pdf");
+
+                    bool hasEdited = _editedPages.TryGetValue(page, out var editedBytes);
+                    var  single    = new List<(byte[], int, byte[]?)>
+                    {
+                        (page.SourceBytes, page.OriginalPageNumber, hasEdited ? editedBytes : (byte[]?)null)
+                    };
+
+                    await Task.Run(() => ExportMergedPdf(single, outPath));
+
+                    ExportProgress.Value = pi + 1;
+                    StatusText.Text = $"Eksport osobno: {pi + 1} / {count}";
+                }
+
+                ExportProgress.Visibility = Visibility.Collapsed;
+                StatusText.Text = $"Wyeksportowano {count} plików PDF do: {dir}";
+            }
+            catch (Exception ex)
+            {
+                ExportProgress.Visibility = Visibility.Collapsed;
                 StatusText.Text = $"Błąd eksportu: {GetFriendlyErrorMessage(ex)}";
             }
             finally
