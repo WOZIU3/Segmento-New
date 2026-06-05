@@ -1792,30 +1792,61 @@ namespace Segmento
         private void Export_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
-
-            // Stylizacja zgodna z ciemnym motywem aplikacji
-            var itemStyle = new Style(typeof(MenuItem));
-            itemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
-            itemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty,
-                new SolidColorBrush(Color.FromRgb(245, 245, 245))));
-            itemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 13.0));
-            itemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty,
-                new Thickness(16, 10, 16, 10)));
-
-            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = itemStyle };
+        
+            // ── ControlTemplate dla MenuItem (bez guttera, bez niebieskiego highlight) ──
+            var miTemplate = new ControlTemplate(typeof(MenuItem));
+            var miBorder   = new FrameworkElementFactory(typeof(Border));
+            miBorder.Name = "bd";
+            miBorder.SetValue(Border.BackgroundProperty,   Brushes.Transparent);
+            miBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(5));
+            miBorder.SetValue(Border.PaddingProperty,      new Thickness(14, 9, 14, 9));
+            miBorder.SetValue(Border.MarginProperty,       new Thickness(3, 1, 3, 1));
+        
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+            cp.SetValue(ContentPresenter.ContentSourceProperty,    "Header");
+            cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            miBorder.AppendChild(cp);
+            miTemplate.VisualTree = miBorder;
+        
+            var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty,
+                new SolidColorBrush(Color.FromRgb(50, 50, 55)), "bd"));
+            miTemplate.Triggers.Add(hoverTrigger);
+        
+            // ── Style MenuItem ──
+            var miStyle = new Style(typeof(MenuItem));
+            miStyle.Setters.Add(new Setter(MenuItem.TemplateProperty,   miTemplate));
+            miStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
+            miStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty,   12.0));
+            miStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
+        
+            // ── ControlTemplate dla ContextMenu (zaokrąglone rogi) ──
+            var menuTemplate = new ControlTemplate(typeof(ContextMenu));
+            var menuBorder   = new FrameworkElementFactory(typeof(Border));
+            menuBorder.SetValue(Border.BackgroundProperty,    new SolidColorBrush(Color.FromRgb(30, 30, 30)));
+            menuBorder.SetValue(Border.BorderBrushProperty,   new SolidColorBrush(Color.FromRgb(63, 63, 68)));
+            menuBorder.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            menuBorder.SetValue(Border.CornerRadiusProperty,  new CornerRadius(8));
+            menuBorder.SetValue(Border.PaddingProperty,       new Thickness(4));
+        
+            var itemsPresenter = new FrameworkElementFactory(typeof(ItemsPresenter));
+            menuBorder.AppendChild(itemsPresenter);
+            menuTemplate.VisualTree = menuBorder;
+        
+            // ── Menu items ──
+            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = miStyle };
             itemAll.Click += ExportAll_Click;
-
-            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = itemStyle };
+        
+            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = miStyle };
             itemSep.Click += ExportSeparate_Click;
-
+        
             var menu = new ContextMenu
             {
+                Template        = menuTemplate,
+                HasDropShadow   = false,
                 PlacementTarget = btn,
                 Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom,
-                VerticalOffset  = 4,
-                Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-                BorderBrush     = new SolidColorBrush(Color.FromRgb(63, 63, 68)),
-                BorderThickness = new Thickness(1)
+                VerticalOffset  = 4
             };
             menu.Items.Add(itemAll);
             menu.Items.Add(itemSep);
