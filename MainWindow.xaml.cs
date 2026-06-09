@@ -845,6 +845,160 @@ namespace Segmento
         }
 
         // ================================================================
+        // NARZĘDZIE: ZMIANA ROZMIARU (%)
+        // ================================================================
+
+        private void ToolResize_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editorPage == null)
+            {
+                StatusText.Text = "Najpierw załaduj stronę do edytora";
+                return;
+            }
+
+            // Aktualne info o stronie
+            if (EditorPageImage.Source is BitmapSource bmp)
+            {
+                ResizeCurrentDims.Text = $"Wymiary: {bmp.PixelWidth} × {bmp.PixelHeight} px";
+            }
+            else
+            {
+                ResizeCurrentDims.Text = "Wymiary: —";
+            }
+
+            long srcSize = _editorPage.SourceBytes.LongLength;
+            ResizeCurrentMB.Text = $"Rozmiar pliku: {srcSize / 1024.0 / 1024.0:F2} MB";
+
+            ResizePercentBox.Text = "100";
+            ResizeNewMB.Text      = "Szacowany rozmiar po zmianie: —";
+
+            ResizePopup.IsOpen = true;
+            ResizePercentBox.Focus();
+            ResizePercentBox.SelectAll();
+        }
+
+        private void ResizePercent_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_editorPage == null) return;
+            if (ResizeNewMB == null) return;
+
+            if (int.TryParse(ResizePercentBox.Text, out int pct) && pct > 0 && pct <= 1000)
+            {
+                double scale       = pct / 100.0;
+                long   srcSize     = _editorPage.SourceBytes.LongLength;
+                // Szacunek: rozmiar obrazu skaluje się ~kwadratowo z rozdzielczością
+                double estimatedMB = srcSize * scale * scale / 1024.0 / 1024.0;
+                ResizeNewMB.Text = $"Szacowany rozmiar po zmianie: ~{estimatedMB:F2} MB";
+
+                // Pokaż nowe wymiary
+                if (EditorPageImage.Source is BitmapSource bmp)
+                {
+                    int newW = (int)(bmp.PixelWidth  * scale);
+                    int newH = (int)(bmp.PixelHeight * scale);
+                    ResizeNewMB.Text = $"Nowe wymiary: {newW} × {newH} px\nSzacowany rozmiar: ~{estimatedMB:F2} MB";
+                }
+            }
+            else
+            {
+                ResizeNewMB.Text = "Szacowany rozmiar po zmianie: —";
+            }
+        }
+
+        private async void ResizeApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (_editorPage == null) return;
+            if (!int.TryParse(ResizePercentBox.Text, out int pct) || pct <= 0 || pct > 1000)
+            {
+                StatusText.Text = "Podaj wartość procentową od 1 do 1000";
+                return;
+            }
+
+            ResizePopup.IsOpen    = false;
+            ResizeApplyBtn.IsEnabled = false;
+
+            double scale    = pct / 100.0;
+            bool   isImgSrc = IsImageBytes(_editorPage.SourceBytes);
+
+            StatusText.Text = $"Zmiana rozmiaru do {pct}%...";
+
+            byte[] srcBytes = _editorPage.SourceBytes;
+            int    pageIdx  = _editorPage.OriginalPageNumber - 1;
+
+            BitmapImage newBitmap = await Task.Run(() =>
+            {
+                if (isImgSrc)
+                    return ResizeImageBytes(srcBytes, scale);
+                else
+                    return RenderPageAtScale(srcBytes, pageIdx, scale);
+            });
+
+            // Wyczyść nakładki — rozmiar się zmienił
+            EditorOverlayCanvas.Children.Clear();
+            EditorInkCanvas.Strokes.Clear();
+
+            EditorPageImage.Source = newBitmap;
+
+            StatusText.Text = $"Rozmiar zmieniony do {pct}% ({newBitmap.PixelWidth}×{newBitmap.PixelHeight} px) · Zapisz aby zachować";
+
+            ResizeApplyBtn.IsEnabled = true;
+        }
+
+        private static BitmapImage ResizeImageBytes(byte[] imageBytes, double scale)
+        {
+            var original = new BitmapImage();
+            using (var ms = new MemoryStream(imageBytes))
+            {
+                original.BeginInit();
+                original.CacheOption = BitmapCacheOption.OnLoad;
+                original.StreamSource = ms;
+                original.EndInit();
+            }
+            original.Freeze();
+
+            var transformed = new TransformedBitmap(original, new ScaleTransform(scale, scale));
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(transformed));
+            using var outMs = new MemoryStream();
+            encoder.Save(outMs);
+            byte[] pngBytes = outMs.ToArray();
+
+            var result = new BitmapImage();
+            using (var ms2 = new MemoryStream(pngBytes))
+            {
+                result.BeginInit();
+                result.CacheOption = BitmapCacheOption.OnLoad;
+                result.StreamSource = ms2;
+                result.EndInit();
+            }
+            result.Freeze();
+            return result;
+        }
+
+        private static BitmapImage RenderPageAtScale(byte[] pdfBytes, int pageIndex, double scale)
+        {
+            int dpi = (int)(150 * scale);
+            dpi = Math.Max(10, Math.Min(dpi, 600));
+
+            using var pdfStream = new MemoryStream(pdfBytes);
+            var opts = new PDFtoImage.RenderOptions { Dpi = dpi, WithAspectRatio = true };
+            using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: pageIndex, options: opts);
+            using var skImage  = SkiaSharp.SKImage.FromBitmap(skBitmap);
+            using var skData   = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
+
+            var bmp = new BitmapImage();
+            using (var ms = new MemoryStream(skData.ToArray()))
+            {
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.StreamSource = ms;
+                bmp.EndInit();
+            }
+            bmp.Freeze();
+            return bmp;
+        }
+
+        // ================================================================
         // NARZĘDZIE: TEKST
         // ================================================================
 
@@ -1792,61 +1946,30 @@ namespace Segmento
         private void Export_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
-        
-            // ── ControlTemplate dla MenuItem (bez guttera, bez niebieskiego highlight) ──
-            var miTemplate = new ControlTemplate(typeof(MenuItem));
-            var miBorder   = new FrameworkElementFactory(typeof(Border));
-            miBorder.Name = "bd";
-            miBorder.SetValue(Border.BackgroundProperty,   Brushes.Transparent);
-            miBorder.SetValue(Border.CornerRadiusProperty, new CornerRadius(5));
-            miBorder.SetValue(Border.PaddingProperty,      new Thickness(14, 9, 14, 9));
-            miBorder.SetValue(Border.MarginProperty,       new Thickness(3, 1, 3, 1));
-        
-            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
-            cp.SetValue(ContentPresenter.ContentSourceProperty,    "Header");
-            cp.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
-            miBorder.AppendChild(cp);
-            miTemplate.VisualTree = miBorder;
-        
-            var hoverTrigger = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
-            hoverTrigger.Setters.Add(new Setter(Border.BackgroundProperty,
-                new SolidColorBrush(Color.FromRgb(50, 50, 55)), "bd"));
-            miTemplate.Triggers.Add(hoverTrigger);
-        
-            // ── Style MenuItem ──
-            var miStyle = new Style(typeof(MenuItem));
-            miStyle.Setters.Add(new Setter(MenuItem.TemplateProperty,   miTemplate));
-            miStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
-            miStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty,   12.0));
-            miStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
-        
-            // ── ControlTemplate dla ContextMenu (zaokrąglone rogi) ──
-            var menuTemplate = new ControlTemplate(typeof(ContextMenu));
-            var menuBorder   = new FrameworkElementFactory(typeof(Border));
-            menuBorder.SetValue(Border.BackgroundProperty,    new SolidColorBrush(Color.FromRgb(30, 30, 30)));
-            menuBorder.SetValue(Border.BorderBrushProperty,   new SolidColorBrush(Color.FromRgb(63, 63, 68)));
-            menuBorder.SetValue(Border.BorderThicknessProperty, new Thickness(1));
-            menuBorder.SetValue(Border.CornerRadiusProperty,  new CornerRadius(8));
-            menuBorder.SetValue(Border.PaddingProperty,       new Thickness(4));
-        
-            var itemsPresenter = new FrameworkElementFactory(typeof(ItemsPresenter));
-            menuBorder.AppendChild(itemsPresenter);
-            menuTemplate.VisualTree = menuBorder;
-        
-            // ── Menu items ──
-            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = miStyle };
+
+            // Stylizacja zgodna z ciemnym motywem aplikacji
+            var itemStyle = new Style(typeof(MenuItem));
+            itemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
+            itemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty,
+                new SolidColorBrush(Color.FromRgb(245, 245, 245))));
+            itemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 13.0));
+            itemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty,
+                new Thickness(16, 10, 16, 10)));
+
+            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = itemStyle };
             itemAll.Click += ExportAll_Click;
-        
-            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = miStyle };
+
+            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = itemStyle };
             itemSep.Click += ExportSeparate_Click;
-        
+
             var menu = new ContextMenu
             {
-                Template        = menuTemplate,
-                HasDropShadow   = false,
                 PlacementTarget = btn,
                 Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom,
-                VerticalOffset  = 4
+                VerticalOffset  = 4,
+                Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+                BorderBrush     = new SolidColorBrush(Color.FromRgb(63, 63, 68)),
+                BorderThickness = new Thickness(1)
             };
             menu.Items.Add(itemAll);
             menu.Items.Add(itemSep);
