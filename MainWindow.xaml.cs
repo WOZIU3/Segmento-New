@@ -1947,34 +1947,73 @@ namespace Segmento
         {
             if (sender is not Button btn) return;
 
-            // Stylizacja zgodna z ciemnym motywem aplikacji
-            var itemStyle = new Style(typeof(MenuItem));
-            itemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, Brushes.Transparent));
-            itemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty,
-                new SolidColorBrush(Color.FromRgb(245, 245, 245))));
-            itemStyle.Setters.Add(new Setter(MenuItem.FontSizeProperty, 13.0));
-            itemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty,
-                new Thickness(16, 10, 16, 10)));
-
-            var itemAll = new MenuItem { Header = "Wszystkie — jeden plik PDF", Style = itemStyle };
-            itemAll.Click += ExportAll_Click;
-
-            var itemSep = new MenuItem { Header = "Osobno — osobne pliki PDF", Style = itemStyle };
-            itemSep.Click += ExportSeparate_Click;
-
-            var menu = new ContextMenu
+            var popup = new System.Windows.Controls.Primitives.Popup
             {
-                PlacementTarget = btn,
-                Placement       = System.Windows.Controls.Primitives.PlacementMode.Bottom,
-                VerticalOffset  = 4,
+                PlacementTarget    = btn,
+                Placement          = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                VerticalOffset     = 4,
+                AllowsTransparency = true,
+                StaysOpen          = false
+            };
+
+            var itemAll = CreateDropdownButton("Wszystkie — jeden plik PDF");
+            var itemSep = CreateDropdownButton("Osobno — osobne pliki PDF");
+
+            itemAll.Click += (s, ev) => { popup.IsOpen = false; ExportAll_Click(s, ev); };
+            itemSep.Click += (s, ev) => { popup.IsOpen = false; ExportSeparate_Click(s, ev); };
+
+            var stack = new StackPanel { Margin = new Thickness(4) };
+            stack.Children.Add(itemAll);
+            stack.Children.Add(itemSep);
+
+            popup.Child = new Border
+            {
                 Background      = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
                 BorderBrush     = new SolidColorBrush(Color.FromRgb(63, 63, 68)),
-                BorderThickness = new Thickness(1)
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new CornerRadius(8),
+                Child           = stack,
+                MinWidth        = 240
             };
-            menu.Items.Add(itemAll);
-            menu.Items.Add(itemSep);
-            menu.IsOpen = true;
+
+            popup.IsOpen = true;
         }
+
+        private static Button CreateDropdownButton(string header)
+        {
+            var t      = new ControlTemplate(typeof(Button));
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.Name = "bd";
+            border.SetValue(Border.BackgroundProperty,   Brushes.Transparent);
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+            border.SetValue(Border.MarginProperty,       new Thickness(2, 1, 2, 1));
+
+            var cp = new FrameworkElementFactory(typeof(ContentPresenter));
+            cp.SetValue(ContentPresenter.MarginProperty,              new Thickness(14, 10, 14, 10));
+            cp.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Left);
+            cp.SetValue(ContentPresenter.VerticalAlignmentProperty,   VerticalAlignment.Center);
+            border.AppendChild(cp);
+            t.VisualTree = border;
+
+            var hover = new Trigger { Property = UIElement.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(Border.BackgroundProperty,
+                new SolidColorBrush(Color.FromRgb(50, 50, 55)), "bd"));
+            t.Triggers.Add(hover);
+
+            return new Button
+            {
+                Content    = header,
+                Template   = t,
+                Foreground = Brushes.White,
+                FontSize   = 12,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Focusable  = false,
+                Cursor     = Cursors.Hand
+            };
+        }
+
 
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
