@@ -563,13 +563,13 @@
                                             <Border BorderBrush="{Binding SelectionBorderBrush}"
                                                 BorderThickness="2" CornerRadius="12"
                                                 Background="{DynamicResource SurfaceElevatedBrush}"
-                                                Margin="0,0,14,14" Padding="10" Width="190"
+                                                Margin="0,0,14,14" Padding="10" Width="228"
                                                 Cursor="Hand"
                                                 MouseLeftButtonDown="PageTile_MouseLeftButtonDown"
                                                 MouseRightButtonDown="PageTile_MouseRightButtonDown"
                                                 Tag="{Binding}">
                                             <StackPanel>
-                                                <Border Width="168" Height="210"
+                                                <Border Width="202" Height="252"
                                                         Background="White" CornerRadius="6"
                                                         Margin="0,0,0,10">
                                                     <Border.Effect>
