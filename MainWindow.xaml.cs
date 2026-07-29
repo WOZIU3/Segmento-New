@@ -388,8 +388,8 @@ namespace Segmento
             using var pdfStream = new MemoryStream(pdfBytes);
             var renderOptions = new PDFtoImage.RenderOptions
             {
-                Dpi = 60,
-                Width = 220,
+                Dpi = 72,
+                Width = 264,
                 WithAspectRatio = true
             };
             using var skBitmap = Conversion.ToImage(pdfStream, page: pageIndex, options: renderOptions);
