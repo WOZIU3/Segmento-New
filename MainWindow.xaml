@@ -760,13 +760,14 @@
                                             <Grid>
                                                 <StackPanel>
                                                     <Grid Margin="0,0,0,10">
-                                                        <Border Width="168" Height="210"
-                                                                Background="White" CornerRadius="6">
-                                                            <Border.Effect>
-                                                                <DropShadowEffect Color="Black" Direction="270"
-                                                                                  ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
-                                                            </Border.Effect>
-                                                            <Grid>
+                                                        <Grid Width="202" Height="252">
+                                                            <Border Background="White" CornerRadius="6">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect Color="Black" Direction="270"
+                                                                                      ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                                                </Border.Effect>
+                                                            </Border>
+                                                            <Grid ClipToBounds="True">
                                                                 <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}"
                                                                            FontSize="32" Foreground="#CCCCCC"
                                                                            HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -782,7 +783,7 @@
                                                                                Foreground="White"/>
                                                                 </Border>
                                                             </Grid>
-                                                        </Border>
+                                                        </Grid>
                                                         <Border Background="{DynamicResource AccentBrush}"
                                                                 CornerRadius="6" Padding="8,3"
                                                                 HorizontalAlignment="Left" VerticalAlignment="Top"
