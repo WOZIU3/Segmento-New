@@ -753,7 +753,7 @@
                                         <Border BorderBrush="{Binding OrganizeBorderBrush}"
                                                 BorderThickness="2" CornerRadius="12"
                                                 Background="{DynamicResource SurfaceElevatedBrush}"
-                                                Margin="0,0,14,14" Padding="10" Width="190"
+                                                Margin="0,0,14,14" Padding="10" Width="228"
                                                 Cursor="SizeAll"
                                                 MouseRightButtonDown="OrganizeItem_MouseRightButtonDown"
                                                 Tag="{Binding}">
