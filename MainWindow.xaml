@@ -43,15 +43,27 @@
 
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="40"
-                           CornerRadius="0"
+                           CornerRadius="8"
                            GlassFrameThickness="0"
                            ResizeBorderThickness="6"
                            UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
-    <Border Background="{DynamicResource WindowBackgroundBrush}"
+    <Border x:Name="RootBorder"
+            Background="{DynamicResource WindowBackgroundBrush}"
             BorderBrush="{DynamicResource BorderBrush}"
             BorderThickness="1">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="CornerRadius" Value="8"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                 Value="Maximized">
+                        <Setter Property="CornerRadius" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240"/>
