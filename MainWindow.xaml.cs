@@ -55,6 +55,8 @@ namespace Segmento
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
         private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
         private const int DWMSBT_MAINWINDOW = 2;
+        private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+        private const int DWMWCP_ROUND = 2;
 
         public MainWindow()
         {
@@ -77,6 +79,8 @@ namespace Segmento
                 DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref useDark, sizeof(int));
                 int backdrop = DWMSBT_MAINWINDOW;
                 DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdrop, sizeof(int));
+                int corner = DWMWCP_ROUND;   // Win11+; na Win10 zwraca blad i jest ignorowane
+                DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
             }
             catch { }
         }
