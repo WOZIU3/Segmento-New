@@ -58,8 +58,6 @@ namespace Segmento
         private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
         private const int DWMWCP_ROUND = 2;
         private const int DWMWCP_ROUNDSMALL = 3;
-        private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-        private const int DWMWCP_ROUND = 2;
 
         public MainWindow()
         {
