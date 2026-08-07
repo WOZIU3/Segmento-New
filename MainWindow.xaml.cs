@@ -110,7 +110,7 @@ namespace Segmento
 
         private const double SidebarExpandedWidth = 240;
         private const double SidebarCollapsedWidth = 64;
-        private bool _sidebarCollapsed;
+        private bool _sidebarCollapsed = true;
 
         private void SidebarToggle_Click(object sender, RoutedEventArgs e)
         {
