@@ -74,7 +74,7 @@
             <!-- SIDEBAR                                                 -->
             <!-- ====================================================== -->
             <Border Grid.Column="0" x:Name="Sidebar"
-                    Width="240" ClipToBounds="True" Tag="Expanded"
+                    Width="64" ClipToBounds="True" Tag="Collapsed"
                     Background="{DynamicResource SidebarBackgroundBrush}"
                     BorderBrush="{DynamicResource BorderSubtleBrush}"
                     BorderThickness="0,0,1,0">
@@ -218,12 +218,12 @@
                                     Background="Transparent"
                                     BorderThickness="0"
                                     Padding="0"
-                                    ToolTip="Zwiń panel">
+                                    ToolTip="Rozwiń panel">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border Background="Transparent" Padding="2">
                                             <TextBlock x:Name="tgl"
-                                                       Text="&#xE76B;"
+                                                       Text="&#xE76C;"
                                                        FontFamily="{StaticResource IconFont}"
                                                        FontSize="14"
                                                        Foreground="{DynamicResource TextTertiaryBrush}"/>
