@@ -1,0 +1,1191 @@
+
+<Window x:Class="Segmento.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:ctl="clr-namespace:Segmento.Controls"
+        Title="Segmento"
+        Height="850"
+        Width="1280"
+        MinHeight="650"
+        MinWidth="1000"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        FontFamily="{StaticResource DefaultFont}"
+        FontSize="13"
+        AllowDrop="True"
+        Drop="Window_Drop"
+        DragEnter="Window_DragEnter">
+
+    <Window.Resources>
+        <!-- Ciemny tooltip pasujący do motywu aplikacji -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background"      Value="#1E1E1E"/>
+            <Setter Property="Foreground"      Value="White"/>
+            <Setter Property="BorderBrush"     Value="#3F3F44"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="8,5"/>
+            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="40"
+                           CornerRadius="8"
+                           GlassFrameThickness="0"
+                           ResizeBorderThickness="6"
+                           UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <Border x:Name="RootBorder"
+            Background="{DynamicResource WindowBackgroundBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1">
+        <Border.Style>
+            <Style TargetType="Border">
+                <Setter Property="CornerRadius" Value="8"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                 Value="Maximized">
+                        <Setter Property="CornerRadius" Value="0"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ====================================================== -->
+            <!-- SIDEBAR                                                 -->
+            <!-- ====================================================== -->
+            <Border Grid.Column="0" x:Name="Sidebar"
+                    Width="64" ClipToBounds="True" Tag="Collapsed"
+                    Background="{DynamicResource SidebarBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="0,0,1,0">
+                <Grid Width="240" HorizontalAlignment="Left">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Logo -->
+                    <Border Grid.Row="0" Height="40" Padding="20,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="pack://application:,,,/Logo.png"
+                                   Width="22" Height="22"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0"
+                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <TextBlock Style="{StaticResource SidebarLabel}" Text="Segmento"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Navigation -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,20,0,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SidebarLabel}" Text="NAWIGACJA"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       Margin="22,0,0,8"/>
+
+                            <RadioButton x:Name="NavImport"
+                                         Style="{StaticResource SidebarButton}"
+                                         GroupName="MainNav"
+                                         IsChecked="True"
+                                         Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8E5;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource SidebarLabel}" Text="Import PDF" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavSelect"
+                                         Style="{StaticResource SidebarButton}"
+                                         GroupName="MainNav"
+                                         IsEnabled="False"
+                                         Checked="Nav_Checked">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE762;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource SidebarLabel}" Grid.Column="1" Text="Wybór stron" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource SidebarLabel}" Grid.Column="2" x:Name="SelectBadge"
+                                            Background="{DynamicResource SurfaceActiveBrush}"
+                                            CornerRadius="10" Padding="6,1"
+                                            VerticalAlignment="Center" Visibility="Collapsed">
+                                        <TextBlock x:Name="SelectBadgeText" Text="0"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+
+                            <RadioButton x:Name="NavOrganize"
+                                         Style="{StaticResource SidebarButton}"
+                                         GroupName="MainNav"
+                                         IsEnabled="False"
+                                         Checked="Nav_Checked">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="&#xE71D;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource SidebarLabel}" Grid.Column="1" Text="Organizuj" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource SidebarLabel}" Grid.Column="2" x:Name="OrganizeBadge"
+                                            Background="{DynamicResource SurfaceActiveBrush}"
+                                            CornerRadius="10" Padding="6,1"
+                                            VerticalAlignment="Center" Visibility="Collapsed">
+                                        <TextBlock x:Name="OrganizeBadgeText" Text="0"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+
+                            <Border Height="1" Background="{DynamicResource BorderSubtleBrush}"
+                                    Margin="20,16,20,12"/>
+
+                            <TextBlock Style="{StaticResource SidebarLabel}" Text="DZIAŁANIA"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       Margin="22,0,0,8"/>
+
+                            <RadioButton x:Name="NavExport"
+                                         Style="{StaticResource SidebarButton}"
+                                         GroupName="MainNav"
+                                         IsEnabled="False"
+                                         Checked="Nav_Checked">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74E;" FontFamily="{StaticResource IconFont}"
+                                               FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                    <TextBlock Style="{StaticResource SidebarLabel}" Text="Eksport" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </RadioButton>
+
+                                <RadioButton x:Name="NavEditor"
+                                             Style="{StaticResource SidebarButton}"
+                                             GroupName="MainNav"
+                                             IsEnabled="False"
+                                             Checked="Nav_Checked">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xED63;" FontFamily="{StaticResource IconFont}"
+                                                   FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                                        <TextBlock Style="{StaticResource SidebarLabel}" Text="Edytor PDF" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </RadioButton>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Footer -->
+                    <Border Grid.Row="2" Padding="22,16"
+                            BorderBrush="{DynamicResource BorderSubtleBrush}"
+                            BorderThickness="0,1,0,0">
+                        <StackPanel>
+                            <Button x:Name="SidebarToggleBtn"
+                                    Click="SidebarToggle_Click"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,0,0,14"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    ToolTip="Rozwiń panel">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="Transparent" Padding="2">
+                                            <TextBlock x:Name="tgl"
+                                                       Text="&#xE76C;"
+                                                       FontFamily="{StaticResource IconFont}"
+                                                       FontSize="14"
+                                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="tgl" Property="Foreground"
+                                                        Value="{DynamicResource TextPrimaryBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <TextBlock Style="{StaticResource SidebarLabel}" Text="SEGMENTO"
+                                       FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"/>
+                            <Button Style="{StaticResource SidebarLabel}" x:Name="LicenseBtn"
+                                    Click="License_Click"
+                                    Cursor="Hand"
+                                    HorizontalAlignment="Left"
+                                    Margin="0,2,0,0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <TextBlock x:Name="lic"
+                                                   Text="v2.1 · Licencja i prawa autorskie"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="lic" Property="Foreground"
+                                                        Value="{DynamicResource TextPrimaryBrush}"/>
+                                                <Setter TargetName="lic" Property="TextDecorations"
+                                                        Value="Underline"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ====================================================== -->
+            <!-- MAIN CONTENT                                            -->
+            <!-- ====================================================== -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="40"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- TITLEBAR -->
+                <Grid Grid.Row="0" Background="{DynamicResource WindowBackgroundBrush}"
+                      MouseLeftButtonDown="Titlebar_MouseLeftButtonDown">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="20,0,0,0">
+                        <TextBlock x:Name="HeaderTitle" Text="Witaj w Segmento"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="HeaderSubtitle" Text="Zacznij od importu plików PDF"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextTertiaryBrush}"
+                                   VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Window control buttons - ikony rysowane wektorowo (niezależne od fontu) -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <!-- Minimalizuj: pozioma linia -->
+                        <Button x:Name="MinimizeBtn"
+                                Style="{StaticResource CaptionButton}"
+                                Click="Minimize_Click"
+                                ToolTip="Minimalizuj">
+                            <Rectangle Width="11" Height="1"
+                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        </Button>
+
+                        <!-- Maksymalizuj: kwadrat (obrys) -->
+                        <Button x:Name="MaximizeBtn"
+                                Style="{StaticResource CaptionButton}"
+                                Click="Maximize_Click"
+                                ToolTip="Maksymalizuj">
+                            <Grid Width="10" Height="10">
+                                <Rectangle x:Name="MaxGlyph"
+                                           Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           StrokeThickness="1"
+                                           Fill="Transparent"/>
+                            </Grid>
+                        </Button>
+
+                        <!-- Zamknij: krzyżyk X -->
+                        <Button x:Name="CloseBtn"
+                                Style="{StaticResource CloseCaptionButton}"
+                                Click="Close_Click"
+                                ToolTip="Zamknij">
+                            <Grid Width="11" Height="11">
+                                <Line X1="0" Y1="0" X2="11" Y2="11"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1"/>
+                                <Line X1="0" Y1="11" X2="11" Y2="0"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1"/>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- FILE INFO BAR -->
+                <Border Grid.Row="1" x:Name="FileInfoBar"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="0,1,0,1"
+                        Padding="24,12"
+                        Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                    CornerRadius="8" Width="36" Height="36" Margin="0,0,14,0">
+                                <TextBlock Text="&#xEA90;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="18"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock x:Name="FileNameText" Text="Brak plików"
+                                           FontSize="13" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock x:Name="FileInfoText" Text=""
+                                           FontSize="11"
+                                           Foreground="{DynamicResource TextTertiaryBrush}"
+                                           Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button Grid.Column="1" x:Name="AddMoreBtn"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="SelectFile_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}"
+                                           FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="Dodaj PDF" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- VIEWS -->
+                <Grid Grid.Row="2">
+
+                    <!-- IMPORT VIEW -->
+                    <Grid x:Name="ImportView" Visibility="Visible">
+                        <Border Padding="60" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                            <Border x:Name="DropZone"
+                                    Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="2"
+                                    CornerRadius="20"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Width="540" Height="400">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                            CornerRadius="20" Width="80" Height="80"
+                                            HorizontalAlignment="Center" Margin="0,0,0,24">
+                                        <TextBlock Text="&#xE8E5;" FontFamily="{StaticResource IconFont}"
+                                                   FontSize="36"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="Przeciągnij pliki PDF tutaj"
+                                               FontSize="22" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Możesz dodać wiele plików jednocześnie"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Center" Margin="0,8,0,28"/>
+                                                <Button Click="SelectFile_Click"
+                                                HorizontalAlignment="Center"
+                                                Padding="28,12"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush"
+                                                                Value="{DynamicResource TextSecondaryBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                            <TextBlock FontSize="14" FontWeight="SemiBold">
+                                                <TextBlock.Foreground>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#C43A00" Offset="0"/>
+                                                        <GradientStop Color="#E85E00" Offset="0.4"/>
+                                                        <GradientStop Color="#F07820" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </TextBlock.Foreground>
+                                                Wybierz pliki
+                                            </TextBlock>
+                                        </Button>
+                                    <TextBlock Text="Obsługiwany format: PDF"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               HorizontalAlignment="Center" Margin="0,24,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </Grid>
+
+                    <!-- SELECT VIEW -->
+                    <Grid x:Name="SelectView" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Padding="24,16"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="SelectionCountText" Text="0 zaznaczonych"
+                                               FontSize="13" FontWeight="Medium"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <Border Width="1" Height="14"
+                                            Background="{DynamicResource BorderBrush}" Margin="14,0"/>
+                                    <TextBlock Text="Prawy klik = podgląd HD"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Content="Zaznacz wszystko" Style="{StaticResource GhostButton}"
+                                                Click="SelectAll_Click" Margin="0,0,4,0"/>
+                                        <Button Content="Usuń zaznaczenie" Style="{StaticResource GhostButton}"
+                                                Click="DeselectAll_Click" Margin="0,0,12,0"/>
+                                        <Button Click="ResetAndGoBack_Click"
+                                                Margin="0,0,8,0"
+                                                Padding="16,8"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                                    Value="{DynamicResource TextSecondaryBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock Text="Resetuj" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="White"/>
+                                        </Button>
+                                        <Button x:Name="GoToOrganizeBtn"
+                                                Click="GoToOrganize_Click"
+                                                IsEnabled="False"
+                                                Padding="16,8"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                                    Value="{DynamicResource TextSecondaryBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="bd" Property="Opacity" Value="0.4"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock FontSize="13" FontWeight="SemiBold">
+                                                <TextBlock.Foreground>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#C43A00" Offset="0"/>
+                                                        <GradientStop Color="#E85E00" Offset="0.4"/>
+                                                        <GradientStop Color="#F07820" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </TextBlock.Foreground>
+                                                Przejdź do organizacji
+                                            </TextBlock>
+                                        </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <ScrollViewer x:Name="PagesScroll"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="24,20,12,20"
+                                          PreviewMouseLeftButtonDown="PagesArea_MouseDown"
+                                          PreviewMouseMove="PagesArea_MouseMove"
+                                          PreviewMouseLeftButtonUp="PagesArea_MouseUp">
+                                <ItemsControl x:Name="PagesList">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{Binding SelectionBorderBrush}"
+                                                BorderThickness="2" CornerRadius="12"
+                                                Background="{DynamicResource SurfaceElevatedBrush}"
+                                                Margin="0,0,14,14" Padding="10" Width="228"
+                                                Cursor="Hand"
+                                                MouseLeftButtonDown="PageTile_MouseLeftButtonDown"
+                                                MouseRightButtonDown="PageTile_MouseRightButtonDown"
+                                                Tag="{Binding}">
+                                            <StackPanel>
+                                                <Grid Width="202" Height="252" Margin="0,0,0,10">
+                                                    <!-- cien na osobnym tle: Image poza subtree efektu = ostry render -->
+                                                    <Border Background="White" CornerRadius="6">
+                                                        <Border.Effect>
+                                                            <DropShadowEffect Color="Black" Direction="270"
+                                                                              ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                                        </Border.Effect>
+                                                    </Border>
+                                                    <Grid ClipToBounds="True">
+                                                        <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}"
+                                                                   FontSize="32" Foreground="#CCCCCC"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Visibility="{Binding LoadingVisibility}"/>
+                                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                                               Visibility="{Binding ThumbnailVisibility}"/>
+                                                        <Border Background="#CC000000" CornerRadius="4"
+                                                                Padding="6,2" Margin="6"
+                                                                HorizontalAlignment="Left" VerticalAlignment="Top">
+                                                            <TextBlock Text="{Binding SourceBadge}"
+                                                                       FontSize="9" FontWeight="SemiBold"
+                                                                       Foreground="White"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Grid>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                                               FontSize="12" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"/>
+                                                    <CheckBox Grid.Column="1"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              VerticalAlignment="Center"
+                                                              Click="Checkbox_Click"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- Rubber band selection layer -->
+                            <Canvas x:Name="RubberBandCanvas"
+                                    Background="Transparent"
+                                    IsHitTestVisible="False">
+                                <Rectangle x:Name="RubberBandRect"
+                                           Visibility="Collapsed"
+                                           Fill="#330078D4"
+                                           Stroke="#EDEDED"
+                                           StrokeThickness="1"/>
+                            </Canvas>
+                        </Grid>
+                    </Grid>
+
+                    <!-- ORGANIZE VIEW -->
+                    <Grid x:Name="OrganizeView" Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Padding="24,16"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <TextBlock Text="Organizuj kolejność stron"
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Przeciągnij strony aby zmienić kolejność · Prawy klik = podgląd · ✕ = usuń"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextTertiaryBrush}"
+                                               Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <Button Click="ResetAndGoBack_Click"
+                                            Margin="0,0,8,0"
+                                            Padding="16,8"
+                                            Background="Transparent"
+                                            BorderBrush="{DynamicResource BorderBrush}"
+                                            BorderThickness="1">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                        <Setter TargetName="bd" Property="BorderBrush"
+                                                                Value="{DynamicResource TextSecondaryBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background"
+                                                                Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <TextBlock Text="Resetuj" FontSize="13" FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                    </Button>
+                                    <Button x:Name="ExportBtn"
+                                                Click="Export_Click"
+                                                IsEnabled="False"
+                                                Padding="16,8"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="bd"
+                                                            Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceElevatedBrush}"/>
+                                                            <Setter TargetName="bd" Property="BorderBrush"
+                                                                    Value="{DynamicResource TextSecondaryBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                            <Setter TargetName="bd" Property="Background"
+                                                                    Value="{DynamicResource SurfaceActiveBrush}"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter TargetName="bd" Property="Opacity" Value="0.4"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <TextBlock FontSize="13" FontWeight="SemiBold">
+                                                <TextBlock.Foreground>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#C43A00" Offset="0"/>
+                                                        <GradientStop Color="#E85E00" Offset="0.4"/>
+                                                        <GradientStop Color="#F07820" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </TextBlock.Foreground>
+                                                Eksportuj do PDF
+                                            </TextBlock>
+                                        </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1" x:Name="OrganizeScroll"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="24,20,12,20">
+                            <ItemsControl x:Name="OrganizeList">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ctl:AnimatedWrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{Binding OrganizeBorderBrush}"
+                                                BorderThickness="2" CornerRadius="12"
+                                                Background="{DynamicResource SurfaceElevatedBrush}"
+                                                Margin="0,0,14,14" Padding="10" Width="228"
+                                                Cursor="SizeAll"
+                                                MouseRightButtonDown="OrganizeItem_MouseRightButtonDown"
+                                                Tag="{Binding}">
+                                            <Grid>
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,10">
+                                                        <Grid Width="202" Height="252">
+                                                            <!-- cien na osobnym tle: Image poza subtree efektu = ostry render -->
+                                                            <Border Background="White" CornerRadius="6">
+                                                                <Border.Effect>
+                                                                    <DropShadowEffect Color="Black" Direction="270"
+                                                                                      ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                                                                </Border.Effect>
+                                                            </Border>
+                                                            <Grid ClipToBounds="True">
+                                                                <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFont}"
+                                                                           FontSize="32" Foreground="#CCCCCC"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Visibility="{Binding LoadingVisibility}"/>
+                                                                <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                                                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                                                       Visibility="{Binding ThumbnailVisibility}"/>
+                                                                <Border Background="#CC000000" CornerRadius="4"
+                                                                        Padding="6,2" Margin="6"
+                                                                        HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                                                                    <TextBlock Text="{Binding SourceBadge}"
+                                                                               FontSize="9" FontWeight="SemiBold"
+                                                                               Foreground="White"/>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Grid>
+                                                        <Border Background="{DynamicResource AccentBrush}"
+                                                                CornerRadius="6" Padding="8,3"
+                                                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                                Margin="8,8,0,0">
+                                                            <TextBlock Text="{Binding OrganizeOrder}"
+                                                                       Foreground="{DynamicResource OnAccentBrush}"
+                                                                       FontSize="11" FontWeight="Bold"/>
+                                                        </Border>
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                                                   FontSize="12" FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <!-- Zielone kolko - ikona przeciagania -->
+                                                        <Ellipse Grid.Column="1"
+                                                                 Width="12" Height="12"
+                                                                 VerticalAlignment="Center"
+                                                                 ToolTip="Można przeciągać">
+                                                            <Ellipse.Fill>
+                                                                <SolidColorBrush Color="#2ECC71"/>
+                                                            </Ellipse.Fill>
+                                                        </Ellipse>
+                                                    </Grid>
+                                                </StackPanel>
+                                                <!-- Przycisk usuwania - X rysowany wektorowo -->
+                                                <Button Width="24" Height="24"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Margin="0,8,8,0"
+                                                        Background="{DynamicResource SurfaceActiveBrush}"
+                                                        Foreground="{DynamicResource TextPrimaryBrush}"
+                                                        BorderThickness="0" Cursor="Hand"
+                                                        Click="RemoveFromOrganize_Click"
+                                                        Tag="{Binding}"
+                                                        ToolTip="Usuń stronę">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                                                    CornerRadius="12">
+                                                                <Grid Width="9" Height="9">
+                                                                    <Line X1="0" Y1="0" X2="9" Y2="9"
+                                                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          StrokeThickness="1.4"/>
+                                                                    <Line X1="0" Y1="9" X2="9" Y2="0"
+                                                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                                          StrokeThickness="1.4"/>
+                                                                </Grid>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="bg" Property="Background" Value="#E81123"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+
+                <!-- EDITOR VIEW -->
+                <Grid x:Name="EditorView" Visibility="Collapsed">
+                    <Grid.Resources>
+                        <Style x:Key="ToolChip" TargetType="RadioButton">
+                            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="Padding" Value="10,5"/>
+                            <Setter Property="Margin" Value="1,0"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="RadioButton">
+                                        <Border x:Name="b" Background="{TemplateBinding Background}"
+                                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="b" Property="Background" Value="{DynamicResource SurfaceActiveBrush}"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="b" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        <Style x:Key="ToolSep" TargetType="Border">
+                            <Setter Property="Width" Value="1"/>
+                            <Setter Property="Margin" Value="6,4"/>
+                            <Setter Property="Background" Value="{DynamicResource BorderSubtleBrush}"/>
+                        </Style>
+                    </Grid.Resources>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Górny pasek narzędzi -->
+                    <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1" Padding="8,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <RadioButton x:Name="ToolSelect" Content="Zaznacz" Tag="Select" GroupName="EditorTools" IsChecked="True" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Tekst" Tag="Text" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Obraz" Tag="Image" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <Border Style="{StaticResource ToolSep}"/>
+                                    <RadioButton Content="Rysuj" Tag="Ink" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Zakreślacz" Tag="Highlighter" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <Border Style="{StaticResource ToolSep}"/>
+                                    <RadioButton Content="Prostokąt" Tag="Rectangle" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Elipsa" Tag="Ellipse" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Linia" Tag="Line" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Strzałka" Tag="Arrow" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Łamana" Tag="Polyline" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <Border Style="{StaticResource ToolSep}"/>
+                                    <RadioButton Content="Podświetl" Tag="Highlight" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Stempel" Tag="Stamp" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Redakcja" Tag="Redact" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Content="Guma" Tag="Eraser" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="↶" ToolTip="Cofnij (Ctrl+Z)" Style="{StaticResource GhostButton}" Click="Undo_Click" Padding="8,4"/>
+                                <Button Content="↷" ToolTip="Ponów (Ctrl+Y)" Style="{StaticResource GhostButton}" Click="Redo_Click" Padding="8,4"/>
+                                <Border Style="{StaticResource ToolSep}"/>
+                                <Button Content="−" ToolTip="Pomniejsz" Style="{StaticResource GhostButton}" Click="ZoomOut_Click" Padding="8,4"/>
+                                <TextBlock x:Name="ZoomLabel" Text="100%" VerticalAlignment="Center" MinWidth="42"
+                                           TextAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Button Content="+" ToolTip="Powiększ" Style="{StaticResource GhostButton}" Click="ZoomIn_Click" Padding="8,4"/>
+                                <Button Content="Dopasuj" ToolTip="Dopasuj do okna (Ctrl+0)" Style="{StaticResource GhostButton}" Click="ZoomFit_Click" Padding="8,4"/>
+                                <Border Style="{StaticResource ToolSep}"/>
+                                <Button Content="Szukaj" Style="{StaticResource GhostButton}" Click="Search_Click" Padding="8,4"/>
+                                <Button Content="Wsadowe" Style="{StaticResource GhostButton}" Click="Batch_Click" Padding="8,4"/>
+                                <Button Content="Metadane" Style="{StaticResource GhostButton}" Click="Metadata_Click" Padding="8,4"/>
+                                <Button Content="Zabezpiecz" Style="{StaticResource GhostButton}" Click="Security_Click" Padding="8,4"/>
+                                <Button Content="PNG" Style="{StaticResource GhostButton}" Click="ExportPng_Click" Padding="8,4"/>
+                                <Border Style="{StaticResource ToolSep}"/>
+                                <Button x:Name="SaveEditBtn" Content="Zapisz" Style="{StaticResource SecondaryButton}" Click="SaveEditor_Click" Padding="12,4"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Obszar roboczy: pasek stron | powierzchnia | panele -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="156"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="270"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Pasek miniatur stron -->
+                        <Border Grid.Column="0" Background="{DynamicResource SidebarBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Bottom" Margin="6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Obróć" Style="{StaticResource GhostButton}" Click="RotateRight_Click" Margin="0,0,2,0"/>
+                                    <Button Grid.Column="1" Content="Usuń" Style="{StaticResource GhostButton}" Click="DeletePage_Click" Margin="2,0,0,0"/>
+                                </Grid>
+                                <Button DockPanel.Dock="Bottom" Content="Wstaw pustą" Style="{StaticResource GhostButton}" Click="InsertPage_Click" Margin="6,0,6,2"/>
+                                <ListBox x:Name="EditorPageStrip" Background="Transparent" BorderThickness="0"
+                                         SelectionChanged="EditorPageStrip_SelectionChanged"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Margin="4"
+                                                    BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" Padding="4">
+                                                <StackPanel>
+                                                    <Image Source="{Binding Source.Thumbnail}" Stretch="Uniform" MaxHeight="150"/>
+                                                    <TextBlock Text="{Binding Source.DisplayName}" FontSize="10" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Powierzchnia edycji -->
+                        <ScrollViewer Grid.Column="1" x:Name="EditorScrollViewer"
+                                      Background="{DynamicResource WindowBackgroundBrush}"
+                                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                      PreviewMouseWheel="EditorScroll_PreviewMouseWheel">
+                            <Grid Margin="40">
+                                <ctl:EditorSurface x:Name="Surface"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   SelectionChanged="Surface_SelectionChanged"
+                                                   ContentChanged="Surface_ContentChanged"/>
+                            </Grid>
+                        </ScrollViewer>
+
+                        <!-- Panel właściwości + warstwy -->
+                        <Border Grid.Column="2" Background="{DynamicResource SidebarBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1,0,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Właściwości -->
+                                <StackPanel Grid.Row="0" Margin="12,12,12,6">
+                                    <TextBlock Text="Właściwości" FontWeight="SemiBold" Margin="0,0,0,8"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <StackPanel x:Name="PropsPanel">
+                                        <TextBlock x:Name="PropsEmpty" Text="Nie wybrano obiektu."
+                                                   Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12"/>
+
+                                        <StackPanel x:Name="PropCommon" Visibility="Collapsed">
+                                            <TextBlock Text="Przezroczystość" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <Slider x:Name="PropOpacity" Minimum="0.1" Maximum="1" Value="1" Margin="0,2,0,8"
+                                                    ValueChanged="PropOpacity_Changed"/>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Grid.Column="0" Content="Na wierzch" Style="{StaticResource GhostButton}" Click="BringToFront_Click" Margin="0,0,2,0"/>
+                                                <Button Grid.Column="1" Content="Pod spód" Style="{StaticResource GhostButton}" Click="SendToBack_Click" Margin="2,0,0,0"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="PropText" Visibility="Collapsed">
+                                            <TextBlock Text="Rozmiar czcionki" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <Slider x:Name="PropFontSize" Minimum="6" Maximum="96" Value="12" Margin="0,2,0,6" ValueChanged="PropFontSize_Changed"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <ToggleButton x:Name="PropBold" Content="B" Width="32" Click="PropBold_Click" Margin="0,0,4,0"/>
+                                                <ToggleButton x:Name="PropItalic" Content="I" Width="32" Click="PropItalic_Click"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="PropShape" Visibility="Collapsed">
+                                            <TextBlock Text="Grubość linii" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <Slider x:Name="PropThickness" Minimum="0.5" Maximum="12" Value="1.5" Margin="0,2,0,6" ValueChanged="PropThickness_Changed"/>
+                                            <CheckBox x:Name="PropDashed" Content="Linia przerywana" Foreground="{DynamicResource TextSecondaryBrush}" Click="PropDashed_Click"/>
+                                        </StackPanel>
+
+                                        <StackPanel x:Name="PropColorRow" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed">
+                                            <TextBlock Text="Kolor:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                            <Button Width="24" Height="18" Background="Black" Click="PropColor_Click" Tag="#FF000000" Margin="0,0,3,0"/>
+                                            <Button Width="24" Height="18" Background="Red" Click="PropColor_Click" Tag="#FFFF0000" Margin="0,0,3,0"/>
+                                            <Button Width="24" Height="18" Background="#E85E00" Click="PropColor_Click" Tag="#FFE85E00" Margin="0,0,3,0"/>
+                                            <Button Width="24" Height="18" Background="#2E7D32" Click="PropColor_Click" Tag="#FF2E7D32" Margin="0,0,3,0"/>
+                                            <Button Width="24" Height="18" Background="#1565C0" Click="PropColor_Click" Tag="#FF1565C0" Margin="0,0,3,0"/>
+                                            <Button Width="24" Height="18" Background="Yellow" Click="PropColor_Click" Tag="#FFFFFF00"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Warstwy -->
+                                <DockPanel Grid.Row="1" Margin="12,6,12,12">
+                                    <TextBlock DockPanel.Dock="Top" Text="Warstwy" FontWeight="SemiBold" Margin="0,0,0,8"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <ListBox x:Name="LayersList" Background="Transparent" BorderThickness="0"
+                                             SelectionChanged="LayersList_SelectionChanged">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                    <CheckBox Grid.Column="1" IsChecked="{Binding IsVisible, Mode=TwoWay}" ToolTip="Widoczność" Margin="4,0"/>
+                                                    <CheckBox Grid.Column="2" IsChecked="{Binding IsLocked, Mode=TwoWay}" ToolTip="Blokada" Margin="4,0"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+                    <!-- Loading overlay -->
+                    <Border x:Name="LoadingOverlay"
+                            Background="{DynamicResource OverlayBrush}"
+                            Visibility="Collapsed">
+                        <Border Background="{DynamicResource SurfaceElevatedBrush}"
+                                CornerRadius="16" Padding="32,28"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock x:Name="LoadingText" Text="Wczytywanie..."
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <ProgressBar IsIndeterminate="True" Width="200" Margin="0,16,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Border>
+
+                    <!-- Warstwa przeciaganej karty (nad wszystkim, bez przycinania) -->
+                    <Canvas x:Name="DragLayer" Panel.ZIndex="100"
+                            IsHitTestVisible="False" ClipToBounds="False"/>
+                </Grid>
+
+                <!-- STATUSBAR -->
+                <Border Grid.Row="3"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="0,1,0,0"
+                        Padding="24,10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Ellipse Grid.Column="0" Width="8" Height="8"
+                                     Fill="{DynamicResource AccentBrush}"
+                                     VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" x:Name="StatusText" Text="Gotowy"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" x:Name="StatusRight"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextTertiaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                        <ProgressBar Grid.Row="1" x:Name="ExportProgress"
+                                     Margin="0,6,0,0" Visibility="Collapsed"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
+
+
