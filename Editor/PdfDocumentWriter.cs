@@ -136,7 +136,7 @@ namespace Segmento.Editor
         private static void ApplyBatch(PdfCanvas canvas, PdfFontCache fonts, double wPt, double hPt,
             int pageNumber, int totalPages, EditorBatchSettings batch)
         {
-            var lc = new LayoutCanvas(canvas, new Rectangle(0, 0, (float)wPt, (float)hPt));
+            var pageRect = new Rectangle(0, 0, (float)wPt, (float)hPt);
 
             if (batch.Watermark is WatermarkOptions wm && EditorBatchSettings.InRange(wm.Pages, pageNumber))
             {
@@ -155,13 +155,14 @@ namespace Segmento.Editor
                 }
                 else if (!string.IsNullOrEmpty(wm.Text))
                 {
-                    var p = new Paragraph(wm.Text)
-                        .SetFont(fonts.Get("Segoe UI", true, false))
-                        .SetFontSize((float)wm.FontSize)
-                        .SetFontColor(PdfWriterContext.Rgb(wm.Color))
-                        .SetOpacity((float)wm.Opacity);
-                    lc.ShowTextAligned(p, (float)(wPt / 2), (float)(hPt / 2),
+                    canvas.SaveState();
+                    canvas.SetExtGState(new PdfExtGState().SetFillOpacity((float)wm.Opacity));
+                    var lc = new LayoutCanvas(canvas, pageRect);
+                    lc.SetFont(fonts.Get("Segoe UI", true, false)).SetFontSize((float)wm.FontSize).SetFontColor(PdfWriterContext.Rgb(wm.Color));
+                    lc.ShowTextAligned(wm.Text, (float)(wPt / 2), (float)(hPt / 2),
                         TextAlignment.CENTER, VerticalAlignment.MIDDLE, (float)(wm.AngleDegrees * Math.PI / 180.0));
+                    lc.Close();
+                    canvas.RestoreState();
                 }
             }
 
@@ -170,27 +171,31 @@ namespace Segmento.Editor
             {
                 string txt = pn.Prefix + pn.Format.Replace("{n}", pageNumber.ToString()).Replace("{total}", totalPages.ToString()) + pn.Suffix;
                 var (x, y, align) = PositionPoint(pn.Position, wPt, hPt);
-                var p = new Paragraph(txt).SetFont(fonts.Get("Segoe UI", false, false))
-                    .SetFontSize((float)pn.FontSize).SetFontColor(PdfWriterContext.Rgb(pn.Color));
-                lc.ShowTextAligned(p, x, y, align, VerticalAlignment.MIDDLE, 0);
+                var lc = new LayoutCanvas(canvas, pageRect);
+                lc.SetFont(fonts.Get("Segoe UI", false, false)).SetFontSize((float)pn.FontSize).SetFontColor(PdfWriterContext.Rgb(pn.Color));
+                lc.ShowTextAligned(txt, x, y, align, VerticalAlignment.MIDDLE, 0);
+                lc.Close();
             }
 
             if (batch.HeaderFooter is HeaderFooterOptions hf && EditorBatchSettings.InRange(hf.Pages, pageNumber))
             {
                 var font = fonts.Get("Segoe UI", false, false);
+                var color = PdfWriterContext.Rgb(hf.Color);
                 if (!string.IsNullOrEmpty(hf.HeaderText))
                 {
-                    var p = new Paragraph(hf.HeaderText).SetFont(font).SetFontSize((float)hf.FontSize).SetFontColor(PdfWriterContext.Rgb(hf.Color));
-                    lc.ShowTextAligned(p, (float)(wPt / 2), (float)(hPt - 24), TextAlignment.CENTER, VerticalAlignment.MIDDLE, 0);
+                    var lc = new LayoutCanvas(canvas, pageRect);
+                    lc.SetFont(font).SetFontSize((float)hf.FontSize).SetFontColor(color);
+                    lc.ShowTextAligned(hf.HeaderText, (float)(wPt / 2), (float)(hPt - 24), TextAlignment.CENTER, VerticalAlignment.MIDDLE, 0);
+                    lc.Close();
                 }
                 if (!string.IsNullOrEmpty(hf.FooterText))
                 {
-                    var p = new Paragraph(hf.FooterText).SetFont(font).SetFontSize((float)hf.FontSize).SetFontColor(PdfWriterContext.Rgb(hf.Color));
-                    lc.ShowTextAligned(p, (float)(wPt / 2), 24, TextAlignment.CENTER, VerticalAlignment.MIDDLE, 0);
+                    var lc = new LayoutCanvas(canvas, pageRect);
+                    lc.SetFont(font).SetFontSize((float)hf.FontSize).SetFontColor(color);
+                    lc.ShowTextAligned(hf.FooterText, (float)(wPt / 2), 24, TextAlignment.CENTER, VerticalAlignment.MIDDLE, 0);
+                    lc.Close();
                 }
             }
-
-            lc.Close();
         }
 
         private static (float x, float y, TextAlignment align) PositionPoint(BatchTextPosition pos, double w, double h)
