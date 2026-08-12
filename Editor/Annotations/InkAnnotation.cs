@@ -20,10 +20,12 @@ namespace Segmento.Editor.Annotations
         public double ThicknessPoints { get => _thicknessPoints; set => Set(ref _thicknessPoints, Math.Max(0.1, value)); }
         public bool IsHighlighter { get => _isHighlighter; set => Set(ref _isHighlighter, value); }
 
+        /// <summary>Blokada sprzężenia zwrotnego Strokes ↔ BoundsPoints.</summary>
+        private bool _syncingGeometry;
+
         /// <summary>Przelicza BoundsPoints z zakresu wszystkich pociągnięć (w punktach).</summary>
         public void RecalculateBounds()
         {
-            if (Strokes.Count == 0) { BoundsPoints = Rect.Empty; return; }
             Rect r = Rect.Empty;
             foreach (var s in Strokes)
                 foreach (var p in s.StylusPoints)
@@ -31,9 +33,39 @@ namespace Segmento.Editor.Annotations
                     var pt = new Point(p.X, p.Y);
                     if (r.IsEmpty) r = new Rect(pt, pt); else r.Union(pt);
                 }
-            double half = _thicknessPoints / 2.0;
-            r.Inflate(half, half);
-            BoundsPoints = r;
+            if (!r.IsEmpty)
+            {
+                double half = _thicknessPoints / 2.0;
+                r.Inflate(half, half);
+            }
+            _syncingGeometry = true;
+            try { BoundsPoints = r; }
+            finally { _syncingGeometry = false; }
+        }
+
+        /// <summary>Przesuwa/skaluje pociągnięcia razem z prostokątem obejmującym.</summary>
+        protected override void OnBoundsChanged(Rect oldBounds, Rect newBounds)
+        {
+            if (_syncingGeometry || Strokes.Count == 0) return;
+            if (oldBounds.IsEmpty || newBounds.IsEmpty) return;
+            if (oldBounds.Width <= 0 || oldBounds.Height <= 0) return;
+
+            var m = Matrix.Identity;
+            m.Translate(-oldBounds.X, -oldBounds.Y);
+            m.Scale(newBounds.Width / oldBounds.Width, newBounds.Height / oldBounds.Height);
+            m.Translate(newBounds.X, newBounds.Y);
+
+            foreach (var stroke in Strokes)
+            {
+                var pts = stroke.StylusPoints;
+                for (int i = 0; i < pts.Count; i++)
+                {
+                    var sp = pts[i];
+                    var q = m.Transform(new Point(sp.X, sp.Y));
+                    sp.X = q.X; sp.Y = q.Y;
+                    pts[i] = sp;
+                }
+            }
         }
 
         public override AnnotationBase Clone()
