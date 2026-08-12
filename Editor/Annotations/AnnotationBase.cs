@@ -23,7 +23,22 @@ namespace Segmento.Editor.Annotations
         public Guid Id { get; } = Guid.NewGuid();
 
         /// <summary>Prostokąt obejmujący w punktach PDF.</summary>
-        public Rect BoundsPoints { get => _boundsPoints; set => Set(ref _boundsPoints, value); }
+        public Rect BoundsPoints
+        {
+            get => _boundsPoints;
+            set
+            {
+                var old = _boundsPoints;
+                if (Set(ref _boundsPoints, value)) OnBoundsChanged(old, value);
+            }
+        }
+
+        /// <summary>
+        /// Wywoływane po zmianie BoundsPoints. Klasy trzymające własną geometrię
+        /// (punkty łamanej, pociągnięcia pióra) muszą ją tu przeskalować/przesunąć,
+        /// inaczej przesunięcie i skalowanie obiektu nie miałoby efektu wizualnego.
+        /// </summary>
+        protected virtual void OnBoundsChanged(Rect oldBounds, Rect newBounds) { }
 
         /// <summary>Obrót wokół środka BoundsPoints, w stopniach (zgodnie z ruchem wskazówek).</summary>
         public double RotationDegrees { get => _rotationDegrees; set => Set(ref _rotationDegrees, value); }
