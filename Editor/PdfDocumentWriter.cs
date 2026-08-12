@@ -33,17 +33,17 @@ namespace Segmento.Editor
             PdfDocument? srcDoc = null;
             try
             {
-                double wPt = page.WidthPoints, hPt = page.HeightPoints;
                 PdfPage destPage;
 
                 if (page.IsImageSource || page.Source?.SourceBytes == null)
                 {
-                    destPage = destDoc.AddNewPage(new PageSize((float)wPt, (float)hPt));
+                    destPage = destDoc.AddNewPage(new PageSize((float)page.WidthPoints, (float)page.HeightPoints));
                     var img = TryImage(page.Source?.SourceBytes);
                     if (img != null)
                     {
                         var canvas0 = new PdfCanvas(destPage);
-                        canvas0.AddImageFittedIntoRectangle(img, new Rectangle(0, 0, (float)wPt, (float)hPt), false);
+                        canvas0.AddImageFittedIntoRectangle(img,
+                            new Rectangle(0, 0, (float)page.WidthPoints, (float)page.HeightPoints), false);
                     }
                 }
                 else
@@ -52,36 +52,33 @@ namespace Segmento.Editor
                     int idx = Math.Clamp(page.Source.OriginalPageNumber, 1, srcDoc.GetNumberOfPages());
                     srcDoc.CopyPagesTo(idx, idx, destDoc);
                     destPage = destDoc.GetPage(1);
-                    wPt = destPage.GetPageSize().GetWidth();
-                    hPt = destPage.GetPageSize().GetHeight();
                 }
 
-                // Rotacja (dodawana do istniejącej /Rotate strony)
-                if (page.Rotation != 0)
-                {
-                    int cur = destPage.GetRotation();
-                    destPage.SetRotation(((cur + page.Rotation) % 360 + 360) % 360);
-                }
+                // Przestrzeń modelu = widoczny obszar strony (CropBox + /Rotate) — dokładnie to,
+                // co pokazuje podgląd. Rotację z edytora nakładamy DOPIERO na końcu, żeby nie
+                // zmieniać układu odniesienia dla już rozmieszczonych obiektów.
+                var box = destPage.GetCropBox();
+                int srcRotation = PdfPageSpace.NormalizeRotation(destPage.GetRotation());
+                var (wPt, hPt) = PdfPageSpace.VisibleSize(box, srcRotation);
 
                 var fonts = new PdfFontCache(destDoc);
 
-                // Redakcja (pdfSweep) — raz, po skopiowaniu treści, przed rysowaniem adnotacji
+                // Redakcja (pdfSweep) — raz, po skopiowaniu treści, przed rysowaniem adnotacji.
+                // Współrzędne muszą być w układzie strony PDF, nie w układzie modelu.
                 var redactions = page.Annotations.OfType<RedactAnnotation>().Where(a => a.IsVisible).ToList();
                 if (redactions.Count > 0)
                 {
                     var locs = new List<PdfCleanUpLocation>();
                     foreach (var r in redactions)
-                    {
-                        var b = r.BoundsPoints;
-                        float y = (float)(hPt - (b.Y + b.Height));
-                        locs.Add(new PdfCleanUpLocation(1, new Rectangle((float)b.X, y, (float)b.Width, (float)b.Height),
+                        locs.Add(new PdfCleanUpLocation(1, PdfPageSpace.ToPageRect(r.BoundsPoints, box, srcRotation),
                             ColorConverter(r.FillColor)));
-                    }
                     PdfCleaner.CleanUp(destDoc, locs, new CleanUpProperties());
                 }
 
-                // Świeży canvas po ewentualnym czyszczeniu
-                var canvas = new PdfCanvas(destPage.NewContentStreamAfter(), destPage.GetResources(), destDoc);
+                // Świeży canvas po ewentualnym czyszczeniu. wrapOldContent=true zamyka oryginalną
+                // treść w q/Q — bez tego niezbalansowany CTM strony źródłowej przesuwałby adnotacje.
+                var canvas = new PdfCanvas(destPage, true);
+                PdfPageSpace.ApplyViewMatrix(canvas, box, srcRotation);
                 var ctx = new PdfWriterContext(destDoc, destPage, canvas, wPt, hPt, fonts);
 
                 // Adnotacje (bez redakcji) wg ZIndex, z obsługą obrotu per obiekt
@@ -114,12 +111,13 @@ namespace Segmento.Editor
                 if (batch != null && batch.Any)
                     ApplyBatch(canvas, fonts, wPt, hPt, pageNumber, totalPages, batch);
 
-                // Kadr (na końcu; przycina widok)
+                // Kadr (przycina widok) — przeliczony na układ strony PDF
                 if (page.CropBoxPoints is System.Windows.Rect crop && crop.Width > 0 && crop.Height > 0)
-                {
-                    float cy = (float)(hPt - (crop.Y + crop.Height));
-                    destPage.SetCropBox(new Rectangle((float)crop.X, cy, (float)crop.Width, (float)crop.Height));
-                }
+                    destPage.SetCropBox(PdfPageSpace.ToPageRect(crop, box, srcRotation));
+
+                // Rotacja z edytora — na samym końcu, doliczona do istniejącej /Rotate strony
+                if (page.Rotation != 0)
+                    destPage.SetRotation(PdfPageSpace.NormalizeRotation(srcRotation + page.Rotation));
 
                 destDoc.Close();
                 srcDoc?.Close();
