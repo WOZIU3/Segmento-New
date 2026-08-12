@@ -99,7 +99,7 @@ namespace Segmento.Editor
         {
             using var pdfStream = new MemoryStream(pdfBytes);
             var opts = new PDFtoImage.RenderOptions { Width = widthPx, WithAspectRatio = true };
-            using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: pageIndex, options: opts);
+            using var skBitmap = PDFtoImage.Conversion.ToImage(pdfStream, page: (System.Index)pageIndex, options: opts);
             using var skImage = SkiaSharp.SKImage.FromBitmap(skBitmap);
             using var skData = skImage.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
             return FromPng(skData.ToArray());
