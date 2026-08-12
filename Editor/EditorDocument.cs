@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using PdfSharpIO = PdfSharp.Pdf.IO;
+using iText.Kernel.Pdf;
 
 namespace Segmento.Editor
 {
@@ -31,32 +31,46 @@ namespace Segmento.Editor
         public void MarkDirty() => IsDirty = true;
         public void MarkSaved() => IsDirty = false;
 
-        /// <summary>Buduje dokument z listy stron (kolejność zachowana). Liczy wymiary w punktach PDF.</summary>
+        /// <summary>
+        /// Buduje dokument z listy stron (kolejność zachowana). Strony już wczytane są
+        /// ponownie użyte — dzięki temu zmiana kolejności/zestawu stron w widoku „Organizuj”
+        /// nie kasuje wykonanej pracy w edytorze.
+        /// </summary>
         public void LoadFrom(IEnumerable<PageItem> pages)
         {
+            var reuse = new Dictionary<PageItem, EditorPage>();
+            foreach (var ep in Pages) reuse[ep.Source] = ep;
+
             Pages.Clear();
             History.Clear();
 
-            // Cache otwartych dokumentów PdfSharp per bajty źródła — jeden odczyt na plik.
-            var cache = new Dictionary<byte[], PdfSharp.Pdf.PdfDocument>();
+            // Cache otwartych dokumentów per bajty źródła — jeden odczyt na plik.
+            var cache = new Dictionary<byte[], PdfDocument>();
             try
             {
                 foreach (var p in pages)
                 {
+                    if (reuse.Remove(p, out var existing))
+                    {
+                        existing.IsDeleted = false;
+                        Pages.Add(existing);
+                        continue;
+                    }
+
                     bool isImg = IsImageBytes(p.SourceBytes);
                     double wPt, hPt;
 
                     if (isImg)
                         (wPt, hPt) = ImageSizePoints(p.SourceBytes);
                     else
-                        (wPt, hPt) = PdfPageSizePoints(cache, p.SourceBytes, p.OriginalPageNumber - 1);
+                        (wPt, hPt) = PdfPageSizePoints(cache, p.SourceBytes, p.OriginalPageNumber);
 
                     Pages.Add(new EditorPage(p, wPt, hPt, isImg));
                 }
             }
             finally
             {
-                foreach (var d in cache.Values) d.Dispose();
+                foreach (var d in cache.Values) { try { d.Close(); } catch { } }
             }
 
             Current = Pages.FirstOrDefault(p => !p.IsDeleted) ?? Pages.FirstOrDefault();
@@ -87,28 +101,34 @@ namespace Segmento.Editor
             return result;
         }
 
-        /// <summary>Zatwierdza wynik edycji do słownika edytowanych stron (_editedPages w MainWindow).</summary>
+        /// <summary>
+        /// Zatwierdza wynik edycji do słownika edytowanych stron (_editedPages w MainWindow).
+        /// Wpisy stron, które nie wymagają już renderowania (cofnięte zmiany, usunięte strony),
+        /// są usuwane — inaczej eksport używałby nieaktualnej wersji.
+        /// </summary>
         public void ApplyTo(IDictionary<PageItem, byte[]> editedPages, EditorBatchSettings? batch = null)
         {
             var rendered = Render(batch);
             foreach (var kv in rendered) editedPages[kv.Key] = kv.Value;
+            foreach (var p in Pages)
+                if (!rendered.ContainsKey(p.Source)) editedPages.Remove(p.Source);
         }
 
+        /// <summary>Widoczny rozmiar strony PDF (CropBox z uwzględnieniem /Rotate) — jak w podglądzie.</summary>
         private static (double w, double h) PdfPageSizePoints(
-            Dictionary<byte[], PdfSharp.Pdf.PdfDocument> cache, byte[] bytes, int pageIndex)
+            Dictionary<byte[], PdfDocument> cache, byte[] bytes, int pageNumber1Based)
         {
             try
             {
                 if (!cache.TryGetValue(bytes, out var doc))
                 {
-                    var ms = new MemoryStream(bytes);
-                    doc = PdfSharpIO.PdfReader.Open(ms, PdfSharpIO.PdfDocumentOpenMode.Import);
+                    doc = new PdfDocument(new PdfReader(new MemoryStream(bytes)));
                     cache[bytes] = doc;
                 }
-                if (pageIndex >= 0 && pageIndex < doc.PageCount)
+                if (pageNumber1Based >= 1 && pageNumber1Based <= doc.GetNumberOfPages())
                 {
-                    var pg = doc.Pages[pageIndex];
-                    return (pg.Width.Point, pg.Height.Point);
+                    var pg = doc.GetPage(pageNumber1Based);
+                    return PdfPageSpace.VisibleSize(pg.GetCropBox(), pg.GetRotation());
                 }
             }
             catch { }
