@@ -86,7 +86,7 @@ namespace Segmento.Editor
                 int widthPx = Math.Max(1, (int)Math.Round(widthsPt[i] / 72.0 * dpi));
                 using var stream = new MemoryStream(pdf);
                 var opts = new PDFtoImage.RenderOptions { Width = widthPx, WithAspectRatio = true };
-                using var sk = PDFtoImage.Conversion.ToImage(stream, page: i, options: opts);
+                using var sk = PDFtoImage.Conversion.ToImage(stream, page: (System.Index)i, options: opts);
                 using var img = SkiaSharp.SKImage.FromBitmap(sk);
                 using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
                 File.WriteAllBytes(Path.Combine(directory, $"{baseName}_{i + 1}.png"), data.ToArray());
