@@ -83,8 +83,79 @@ namespace Segmento.Editor
     }
 
     /// <summary>
+    /// Mapowanie między przestrzenią WIDOCZNĄ strony (to, co użytkownik widzi w podglądzie:
+    /// CropBox z uwzględnieniem /Rotate, origin lewy-górny, Y w dół — czyli przestrzeń modelu)
+    /// a układem współrzędnych strony PDF (origin lewy-dolny, bez rotacji).
+    /// Używane przez writer (macierz widoku, redakcja, kadr) i przez wyszukiwanie tekstu.
+    /// </summary>
+    public static class PdfPageSpace
+    {
+        public static int NormalizeRotation(int degrees) => ((degrees % 360) + 360) % 360;
+
+        /// <summary>Rozmiar widocznej strony (pt) dla danego pudełka i rotacji.</summary>
+        public static (double w, double h) VisibleSize(Rectangle box, int rotation)
+            => NormalizeRotation(rotation) is 90 or 270
+                ? (box.GetHeight(), box.GetWidth())
+                : (box.GetWidth(), box.GetHeight());
+
+        /// <summary>
+        /// Nakłada na canvas macierz przekształcającą układ „widoczny, Y w górę, origin w lewym
+        /// dolnym rogu widocznej strony” na rzeczywisty układ strony PDF. Dzięki temu cała
+        /// dalsza logika rysowania operuje na współrzędnych zgodnych z podglądem.
+        /// </summary>
+        public static void ApplyViewMatrix(PdfCanvas canvas, Rectangle box, int rotation)
+        {
+            switch (NormalizeRotation(rotation))
+            {
+                case 90: canvas.ConcatMatrix(0, 1, -1, 0, box.GetRight(), box.GetBottom()); break;
+                case 180: canvas.ConcatMatrix(-1, 0, 0, -1, box.GetRight(), box.GetTop()); break;
+                case 270: canvas.ConcatMatrix(0, -1, 1, 0, box.GetLeft(), box.GetTop()); break;
+                default:
+                    if (box.GetLeft() != 0 || box.GetBottom() != 0)
+                        canvas.ConcatMatrix(1, 0, 0, 1, box.GetLeft(), box.GetBottom());
+                    break;
+            }
+        }
+
+        /// <summary>Prostokąt modelu (pt, origin lewy-górny) → prostokąt strony PDF.</summary>
+        public static Rectangle ToPageRect(WpfRect r, Rectangle box, int rotation)
+        {
+            switch (NormalizeRotation(rotation))
+            {
+                case 90:
+                    return new Rectangle((float)(box.GetLeft() + r.Y), (float)(box.GetBottom() + r.X),
+                                         (float)r.Height, (float)r.Width);
+                case 180:
+                    return new Rectangle((float)(box.GetRight() - r.X - r.Width), (float)(box.GetBottom() + r.Y),
+                                         (float)r.Width, (float)r.Height);
+                case 270:
+                    return new Rectangle((float)(box.GetRight() - r.Y - r.Height), (float)(box.GetTop() - r.X - r.Width),
+                                         (float)r.Height, (float)r.Width);
+                default:
+                    return new Rectangle((float)(box.GetLeft() + r.X), (float)(box.GetTop() - r.Y - r.Height),
+                                         (float)r.Width, (float)r.Height);
+            }
+        }
+
+        /// <summary>Prostokąt strony PDF → prostokąt modelu (odwrotność ToPageRect).</summary>
+        public static WpfRect ToModelRect(Rectangle d, Rectangle box, int rotation)
+        {
+            double w = Math.Abs(d.GetWidth()), h = Math.Abs(d.GetHeight());
+            double x = d.GetX() + Math.Min(0, d.GetWidth()), y = d.GetY() + Math.Min(0, d.GetHeight());
+            switch (NormalizeRotation(rotation))
+            {
+                case 90: return new WpfRect(y - box.GetBottom(), x - box.GetLeft(), h, w);
+                case 180: return new WpfRect(box.GetRight() - x - w, y - box.GetBottom(), w, h);
+                case 270: return new WpfRect(box.GetTop() - y - h, box.GetRight() - x - w, h, w);
+                default: return new WpfRect(x - box.GetLeft(), box.GetTop() - y - h, w, h);
+            }
+        }
+    }
+
+    /// <summary>
     /// Kontekst zapisu jednej strony. Model trzyma współrzędne w pt PDF, origin lewy-górny, Y w dół;
-    /// odbicie osi Y następuje WYŁĄCZNIE tutaj (ToPdfY).
+    /// odbicie osi Y następuje WYŁĄCZNIE tutaj (ToPdfY). Canvas ma już nałożoną macierz widoku
+    /// (PdfPageSpace.ApplyViewMatrix), więc PageWidth/HeightPoints to wymiary WIDOCZNEJ strony.
     /// </summary>
     public sealed class PdfWriterContext
     {
