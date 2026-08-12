@@ -50,9 +50,11 @@ namespace Segmento.Editor
             bool done = false;
             ok.Click += (_, _) => { done = true; win.DialogResult = true; };
             if (win.ShowDialog() != true || !done) return null;
+            // Puste pole = brak metadanej (nie nadpisujemy jej pustym łańcuchem).
+            static string? N(string v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
             return new DocMetadata
             {
-                Title = t.Text, Author = a.Text, Subject = s.Text, Keywords = k.Text
+                Title = N(t.Text), Author = N(a.Text), Subject = N(s.Text), Keywords = N(k.Text)
             };
         }
 
