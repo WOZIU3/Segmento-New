@@ -28,6 +28,9 @@ namespace Segmento.Editor.Annotations
 
         public bool UsesPoints => _kind is ShapeKind.Line or ShapeKind.Arrow or ShapeKind.Polyline;
 
+        /// <summary>Blokada sprzężenia zwrotnego Points ↔ BoundsPoints.</summary>
+        private bool _syncingGeometry;
+
         public void RecalculateBounds()
         {
             if (!UsesPoints || Points.Count == 0) return;
@@ -35,7 +38,24 @@ namespace Segmento.Editor.Annotations
             foreach (var p in Points) r.Union(p);
             double half = _strokeThicknessPoints / 2.0;
             r.Inflate(half, half);
-            BoundsPoints = r;
+            _syncingGeometry = true;
+            try { BoundsPoints = r; }
+            finally { _syncingGeometry = false; }
+        }
+
+        /// <summary>Przesuwa/skaluje wierzchołki razem z prostokątem obejmującym.</summary>
+        protected override void OnBoundsChanged(Rect oldBounds, Rect newBounds)
+        {
+            if (_syncingGeometry || !UsesPoints || Points.Count == 0) return;
+            if (oldBounds.IsEmpty || newBounds.IsEmpty) return;
+            if (oldBounds.Width <= 0 || oldBounds.Height <= 0) return;
+
+            double sx = newBounds.Width / oldBounds.Width;
+            double sy = newBounds.Height / oldBounds.Height;
+            for (int i = 0; i < Points.Count; i++)
+                Points[i] = new Point(
+                    newBounds.X + (Points[i].X - oldBounds.X) * sx,
+                    newBounds.Y + (Points[i].Y - oldBounds.Y) * sy);
         }
 
         public override AnnotationBase Clone()
