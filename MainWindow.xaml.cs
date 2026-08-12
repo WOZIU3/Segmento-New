@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -70,6 +69,19 @@ namespace Segmento
                 (from, to) => { _organizePages.Move(from, to); UpdateOrganizeOrder(); });
             SourceInitialized += OnSourceInitialized;
             StateChanged += OnStateChanged;
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
+        }
+
+        /// <summary>Skróty globalne edytora (Ctrl+0 — dopasuj do okna).</summary>
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (EditorView.Visibility != Visibility.Visible) return;
+            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+            if (e.Key is Key.D0 or Key.NumPad0)
+            {
+                ZoomFit();
+                e.Handled = true;
+            }
         }
 
         private void OnSourceInitialized(object? sender, EventArgs e)
@@ -789,10 +801,7 @@ namespace Segmento
             NavEditor.IsEnabled = _doc.Pages.Count > 0;
             if (_doc.Pages.Count > 0)
             {
-                _suppressStripSelection = true;
-                EditorPageStrip.SelectedIndex = 0;
-                _suppressStripSelection = false;
-                ShowPage(_doc.Pages.FirstOrDefault(p => !p.IsDeleted));
+                SelectStripPage(_doc.Pages.FirstOrDefault(p => !p.IsDeleted));
             }
         }
 
@@ -810,7 +819,14 @@ namespace Segmento
 
         private async void ShowPage(EditorPage? page)
         {
-            if (page == null) return;
+            if (page == null)
+            {
+                _doc.Current = null;
+                Surface.SetPage(null);
+                LayersList.ItemsSource = null;
+                UpdatePropsPanel();
+                return;
+            }
             _doc.Current = page;
             Surface.SetPage(page);
             LayersList.ItemsSource = page.Annotations;
@@ -824,7 +840,7 @@ namespace Segmento
         {
             try
             {
-                int widthPx = Math.Max(1, (int)Math.Round(page.WidthPoints * Surface.Scale));
+                int widthPx = EditorRenderer.TargetWidth(page.WidthPoints * Surface.Scale);
                 await _doc.Renderer.EnsureBackdropAsync(page, widthPx);
                 if (_doc.Current == page) Surface.Refresh();
             }
@@ -953,10 +969,15 @@ namespace Segmento
         {
             if (_doc.Current == null) return;
             var toDelete = _doc.Current;
-            var next = _doc.Pages.FirstOrDefault(p => !p.IsDeleted && p != toDelete);
+            int at = _doc.Pages.IndexOf(toDelete);
+
+            // Następna żywa strona po usuwanej, a gdy brak — poprzednia.
+            var next = _doc.Pages.Skip(at + 1).FirstOrDefault(p => !p.IsDeleted)
+                       ?? _doc.Pages.Take(Math.Max(0, at)).LastOrDefault(p => !p.IsDeleted);
+
             _doc.History.Push(new DeletePageCommand(toDelete));
             _stripView?.Refresh();
-            ShowPage(next);
+            SelectStripPage(next);
         }
 
         private void InsertPage_Click(object sender, RoutedEventArgs e)
@@ -965,8 +986,17 @@ namespace Segmento
             var cmd = new InsertBlankPageCommand(_doc, index, 595, 842);
             _doc.History.Push(cmd);
             _stripView?.Refresh();
-            var inserted = index < _doc.Pages.Count ? _doc.Pages[index] : _doc.Pages.LastOrDefault();
-            ShowPage(inserted);
+            var inserted = index >= 0 && index < _doc.Pages.Count ? _doc.Pages[index] : _doc.Pages.LastOrDefault();
+            SelectStripPage(inserted);
+        }
+
+        /// <summary>Ustawia stronę w pasku miniatur i na powierzchni (bez pętli zdarzeń zaznaczenia).</summary>
+        private void SelectStripPage(EditorPage? page)
+        {
+            _suppressStripSelection = true;
+            try { EditorPageStrip.SelectedItem = page; }
+            finally { _suppressStripSelection = false; }
+            ShowPage(page);
         }
 
         // ── Powierzchnia ─────────────────────────────────────────────────
@@ -1196,7 +1226,7 @@ namespace Segmento
                     for (int i = 0; i < live.Count; i++)
                     {
                         var bytes = PdfDocumentWriter.RenderPage(live[i], i + 1, total, _doc.Batch);
-                        c += PdfPostProcess.ExportPagesToPng(bytes, dir, $"strona_{i + 1}", dpi.Value);
+                        c += PdfPostProcess.ExportPagesToPng(bytes, dir, "strona", dpi.Value, i + 1);
                     }
                     return c;
                 });
@@ -1206,6 +1236,25 @@ namespace Segmento
         }
 
         // ── Zapis edycji ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Nanosi niezatwierdzone zmiany z edytora przed eksportem — bez tego eksport po cichu
+        /// pominąłby wszystko, czego użytkownik nie zapisał przyciskiem „Zapisz”.
+        /// </summary>
+        private void EnsureEditorApplied()
+        {
+            if (!_doc.IsDirty || _doc.Pages.Count == 0) return;
+            try
+            {
+                _doc.ApplyTo(_editedPages, _doc.Batch);
+                SyncOrganizeFromEditor();
+                _doc.MarkSaved();
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Nie udało się nanieść zmian z edytora: " + ex.Message;
+            }
+        }
 
         private void SaveEditor_Click(object sender, RoutedEventArgs e)
         {
@@ -1329,6 +1378,8 @@ namespace Segmento
 
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
+            EnsureEditorApplied();
+
             List<PageItem> pagesToExport = _organizePages.Count > 0
                 ? _organizePages.ToList()
                 : _pages.Where(p => p.IsSelected).ToList();
@@ -1392,6 +1443,8 @@ namespace Segmento
 
         private async void ExportSeparate_Click(object sender, RoutedEventArgs e)
         {
+            EnsureEditorApplied();
+
             List<PageItem> pagesToExport = _organizePages.Count > 0
                 ? _organizePages.ToList()
                 : _pages.Where(p => p.IsSelected).ToList();
@@ -1641,5 +1694,3 @@ namespace Segmento
         #endregion
     }
 }
-
-
