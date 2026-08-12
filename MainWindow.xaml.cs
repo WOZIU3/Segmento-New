@@ -44,8 +44,6 @@ namespace Segmento
         private CancellationTokenSource? _thumbnailCts;
         private ReorderDragController? _organizeDrag;
         private readonly Dictionary<PageItem, byte[]> _editedPages = new();
-        private bool _isPanning;
-        private Point _panStartPoint;
 
         // --- Nowy edytor (model obiektowy) ---
         private readonly EditorDocument _doc = new();
