@@ -72,7 +72,7 @@ namespace Segmento.Editor
 
             foreach (var n in names)
             {
-                string p = Path.Combine(dir, n + ".ttf");
+                string p = System.IO.Path.Combine(dir, n + ".ttf");
                 if (File.Exists(p)) return p;
             }
             return null;
@@ -105,7 +105,7 @@ namespace Segmento.Editor
         public double ToPdfY(double yPoints, double heightPoints) => PageHeightPoints - (yPoints + heightPoints);
 
         /// <summary>Punkt modelu (origin lewy-górny) → punkt PDF (origin lewy-dolny).</summary>
-        public Point ToPdfPoint(double x, double y) => new(x, PageHeightPoints - y);
+        public (double x, double y) ToPdfPoint(double x, double y) => (x, PageHeightPoints - y);
 
         public static DeviceRgb Rgb(WpfColor c) => new(c.R / 255f, c.G / 255f, c.B / 255f);
 
