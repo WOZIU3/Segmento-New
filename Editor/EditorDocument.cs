@@ -102,7 +102,7 @@ namespace Segmento.Editor
                 if (!cache.TryGetValue(bytes, out var doc))
                 {
                     var ms = new MemoryStream(bytes);
-                    doc = PdfSharpIO.PdfReader.Open(ms, PdfSharpIO.PdfDocumentOpenMode.InformationOnly);
+                    doc = PdfSharpIO.PdfReader.Open(ms, PdfSharpIO.PdfDocumentOpenMode.Import);
                     cache[bytes] = doc;
                 }
                 if (pageIndex >= 0 && pageIndex < doc.PageCount)
