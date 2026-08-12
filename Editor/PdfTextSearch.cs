@@ -41,7 +41,8 @@ namespace Segmento.Editor
                 if (page1Based < 1 || page1Based > doc.GetNumberOfPages()) return hits;
 
                 var page = doc.GetPage(page1Based);
-                double h = page.GetPageSize().GetHeight();
+                var box = page.GetCropBox();
+                int rotation = page.GetRotation();
                 string pattern = (caseSensitive ? "" : "(?i)") + Regex.Escape(query);
 
                 var strategy = new RegexBasedLocationExtractionStrategy(pattern);
@@ -52,8 +53,9 @@ namespace Segmento.Editor
                 {
                     var r = loc.GetRectangle();
                     if (r == null) continue;
-                    double y = h - (r.GetY() + r.GetHeight());
-                    hits.Add(new SearchHit(page1Based, new Rect(r.GetX(), y, r.GetWidth(), r.GetHeight()), loc.GetText()));
+                    var model = PdfPageSpace.ToModelRect(r, box, rotation);
+                    if (model.Width <= 0 || model.Height <= 0) continue;
+                    hits.Add(new SearchHit(page1Based, model, loc.GetText()));
                 }
             }
             catch { }
