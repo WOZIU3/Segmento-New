@@ -68,8 +68,12 @@ namespace Segmento.Editor
             return outMs.ToArray();
         }
 
-        /// <summary>Eksportuje każdą stronę PDF do pliku PNG w podanym katalogu. Zwraca liczbę zapisanych plików.</summary>
-        public static int ExportPagesToPng(byte[] pdf, string directory, string baseName, int dpi)
+        /// <summary>
+        /// Eksportuje każdą stronę PDF do pliku PNG w podanym katalogu. Numerowanie zaczyna się od
+        /// <paramref name="startNumber"/>, dzięki czemu można wołać po jednej stronie bez kolizji nazw.
+        /// Zwraca liczbę zapisanych plików.
+        /// </summary>
+        public static int ExportPagesToPng(byte[] pdf, string directory, string baseName, int dpi, int startNumber = 1)
         {
             Directory.CreateDirectory(directory);
             var widthsPt = new List<double>();
@@ -89,7 +93,7 @@ namespace Segmento.Editor
                 using var sk = PDFtoImage.Conversion.ToImage(stream, page: (System.Index)i, options: opts);
                 using var img = SkiaSharp.SKImage.FromBitmap(sk);
                 using var data = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 95);
-                File.WriteAllBytes(Path.Combine(directory, $"{baseName}_{i + 1}.png"), data.ToArray());
+                File.WriteAllBytes(Path.Combine(directory, $"{baseName}_{startNumber + i}.png"), data.ToArray());
                 count++;
             }
             return count;
