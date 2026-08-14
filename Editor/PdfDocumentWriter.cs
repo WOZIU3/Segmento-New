@@ -24,8 +24,35 @@ namespace Segmento.Editor
     /// </summary>
     public static class PdfDocumentWriter
     {
+        private static bool _cryptoReady;
+
+        /// <summary>
+        /// iText 8 rozwiazuje adapter kryptografii przez Type.GetType z nazwa assembly.
+        /// Adapter nie jest referencjonowany z kodu, wiec przy publikacji single-file
+        /// bywa niezaladowany — ladujemy go jawnie, zanim powstanie pierwszy dokument.
+        /// </summary>
+        private static void EnsureBouncyCastle()
+        {
+            if (_cryptoReady) return;
+
+            foreach (var name in new[] { "itext.bouncy-castle-adapter", "itext7.bouncy-castle-adapter" })
+            {
+                try
+                {
+                    System.Reflection.Assembly.Load(new System.Reflection.AssemblyName(name));
+                    _cryptoReady = true;
+                    return;
+                }
+                catch { }
+            }
+
+            throw new InvalidOperationException(
+                "brak biblioteki itext.bouncy-castle-adapter — dodaj pakiet NuGet i przebuduj aplikację");
+        }
+
         public static byte[] RenderPage(EditorPage page, int pageNumber, int totalPages, EditorBatchSettings? batch)
         {
+            EnsureBouncyCastle();
             var redactions = page.Annotations.OfType<RedactAnnotation>().Where(a => a.IsVisible).ToList();
             byte[] bytes = RenderContent(page, pageNumber, totalPages, batch);
 
