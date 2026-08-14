@@ -1,8 +1,4 @@
-using System;
-using System.IO;
 using System.Windows;
-using iText.Kernel.Geom;
-using iText.Kernel.Pdf;
 
 namespace Segmento.Editor
 {
@@ -48,39 +44,4 @@ namespace Segmento.Editor
         private bool Valid() => _from >= 0 && _to >= 0 && _from < _doc.Pages.Count && _to < _doc.Pages.Count && _from != _to;
     }
 
-    public sealed class InsertBlankPageCommand : IUndoableCommand
-    {
-        private readonly EditorDocument _doc;
-        private readonly int _index;
-        private readonly double _wPt, _hPt;
-        private EditorPage? _created;
-
-        public InsertBlankPageCommand(EditorDocument doc, int index, double widthPoints, double heightPoints)
-        { _doc = doc; _index = index; _wPt = widthPoints; _hPt = heightPoints; }
-
-        public string Label => "Wstaw pustą stronę";
-
-        public void Do()
-        {
-            if (_created == null)
-            {
-                var bytes = BlankPdf(_wPt, _hPt);
-                var item = new PageItem("blank", "Pusta strona", 1, bytes);
-                _created = new EditorPage(item, _wPt, _hPt, false);
-            }
-            int i = Math.Clamp(_index, 0, _doc.Pages.Count);
-            _doc.Pages.Insert(i, _created);
-        }
-
-        public void Undo() { if (_created != null) _doc.Pages.Remove(_created); }
-
-        public static byte[] BlankPdf(double wPt, double hPt)
-        {
-            using var ms = new MemoryStream();
-            var doc = new PdfDocument(new PdfWriter(ms));
-            doc.AddNewPage(new PageSize((float)wPt, (float)hPt));
-            doc.Close();
-            return ms.ToArray();
-        }
-    }
 }
