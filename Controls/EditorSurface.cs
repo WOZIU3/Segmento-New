@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
@@ -112,13 +113,43 @@ namespace Segmento.Controls
         public void SetPage(EditorPage? page)
         {
             CommitEdit();
-            if (_page != null) _page.PropertyChanged -= Page_PropertyChanged;
+            if (_page != null) { _page.PropertyChanged -= Page_PropertyChanged; HookAnnotations(_page, false); }
             _page = page;
-            if (_page != null) _page.PropertyChanged += Page_PropertyChanged;
+            if (_page != null) { _page.PropertyChanged += Page_PropertyChanged; HookAnnotations(_page, true); }
             _selection.Clear();
             UpdateSize();
             InvalidateVisual();
         }
+
+        /// <summary>
+        /// Nasluch zmian adnotacji — panel warstw i wlasciwosci moga zmieniac model bezposrednio
+        /// (widocznosc, blokada, przezroczystosc), a podglad ma sie odswiezyc natychmiast.
+        /// </summary>
+        private void HookAnnotations(EditorPage page, bool on)
+        {
+            if (on)
+            {
+                page.Annotations.CollectionChanged += Annotations_CollectionChanged;
+                foreach (var a in page.Annotations) a.PropertyChanged += Annotation_PropertyChanged;
+            }
+            else
+            {
+                page.Annotations.CollectionChanged -= Annotations_CollectionChanged;
+                foreach (var a in page.Annotations) a.PropertyChanged -= Annotation_PropertyChanged;
+            }
+        }
+
+        private void Annotations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems != null)
+                foreach (AnnotationBase a in e.OldItems) a.PropertyChanged -= Annotation_PropertyChanged;
+            if (e.NewItems != null)
+                foreach (AnnotationBase a in e.NewItems) a.PropertyChanged += Annotation_PropertyChanged;
+            InvalidateVisual();
+        }
+
+        private void Annotation_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+            => InvalidateVisual();
 
         private void Page_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
