@@ -14,8 +14,8 @@ namespace Segmento.Controls
 {
     public enum SurfaceTool
     {
-        Select, Text, Image, Ink, Highlighter, Eraser,
-        Rectangle, Ellipse, Line, Arrow, Polyline, Highlight, Redact, Stamp
+        Select, Text, Image, Ink, Highlighter,
+        Rectangle, Ellipse, Line, Arrow, Polyline, Highlight, Redact
     }
 
     /// <summary>
@@ -64,17 +64,19 @@ namespace Segmento.Controls
         public HighlightKind NewHighlightKind = HighlightKind.Highlight;
         public Color NewRedactFill = Colors.Black;
         public string NewRedactOverlay = "";
-        public bool StampIsImage = false;
-        public byte[]? StampImageBytes = null;
-        public string StampText = "";
-        public string StampPreset = "Zatwierdzone";
 
         private const double HandleSize = 8;
         private const double RotateOffset = 24;
         private const double SnapPx = 6;
 
+        // Macierz pt strony -> px ekranu (skala + obrot strony) i odwrotna.
+        private Matrix _toScreen = Matrix.Identity;
+        private Matrix _toPage = Matrix.Identity;
+
         public event EventHandler? SelectionChanged;
         public event EventHandler? ContentChanged;
+        /// <summary>Narzedzie zakonczylo prace (prawy przycisk myszy) - host wraca do Zaznacz.</summary>
+        public event EventHandler? ToolFinished;
 
         public EditorSurface()
         {
@@ -110,10 +112,26 @@ namespace Segmento.Controls
         public void SetPage(EditorPage? page)
         {
             CommitEdit();
+            if (_page != null) _page.PropertyChanged -= Page_PropertyChanged;
             _page = page;
+            if (_page != null) _page.PropertyChanged += Page_PropertyChanged;
             _selection.Clear();
             UpdateSize();
             InvalidateVisual();
+        }
+
+        private void Page_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(EditorPage.Rotation))
+            {
+                CommitEdit();
+                UpdateSize();
+                InvalidateVisual();
+            }
+            else if (e.PropertyName == nameof(EditorPage.Backdrop))
+            {
+                InvalidateVisual();
+            }
         }
 
         public EditorPage? Page => _page;
@@ -123,16 +141,58 @@ namespace Segmento.Controls
 
         private void UpdateSize()
         {
-            if (_page == null) { Width = 0; Height = 0; return; }
-            Width = _page.WidthPoints * _scale;
-            Height = _page.HeightPoints * _scale;
+            if (_page == null)
+            {
+                Width = 0; Height = 0;
+                _toScreen = Matrix.Identity; _toPage = Matrix.Identity;
+                return;
+            }
+
+            Width = _page.DisplayWidthPoints * _scale;
+            Height = _page.DisplayHeightPoints * _scale;
+
+            var m = new Matrix();
+            m.Scale(_scale, _scale);
+            m.Append(RotationMatrix());
+            _toScreen = m;
+            _toPage = m;
+            _toPage.Invert();
+        }
+
+        /// <summary>Obrot strony w przestrzeni juz przeskalowanej (bez skali).</summary>
+        private Matrix RotationMatrix()
+        {
+            var m = Matrix.Identity;
+            if (_page == null) return m;
+            switch (_page.Rotation)
+            {
+                case 90:
+                    m.Rotate(90);
+                    m.Translate(_page.HeightPoints * _scale, 0);
+                    break;
+                case 180:
+                    m.Rotate(180);
+                    m.Translate(_page.WidthPoints * _scale, _page.HeightPoints * _scale);
+                    break;
+                case 270:
+                    m.Rotate(270);
+                    m.Translate(0, _page.WidthPoints * _scale);
+                    break;
+            }
+            return m;
         }
 
         // ── Konwersje ────────────────────────────────────────────────────
 
-        private Point ToScreen(Point pt) => new(pt.X * _scale, pt.Y * _scale);
-        private Point ToPoints(Point screen) => new(screen.X / _scale, screen.Y / _scale);
-        private Rect ScreenRect(Rect ptRect) => new(ptRect.X * _scale, ptRect.Y * _scale, ptRect.Width * _scale, ptRect.Height * _scale);
+        /// <summary>Punkty strony → rzeczywiste px ekranu (z obrotem strony).</summary>
+        private Point ToScreen(Point pt) => _toScreen.Transform(pt);
+        private Point ToPoints(Point screen) => _toPage.Transform(screen);
+
+        /// <summary>Prostokat w rzeczywistych px ekranu (z obrotem) — chrom zaznaczenia, hit-test.</summary>
+        private Rect ScreenRect(Rect ptRect) => new(ToScreen(ptRect.TopLeft), ToScreen(ptRect.BottomRight));
+
+        /// <summary>Prostokat w przestrzeni przeskalowanej strony (bez obrotu) — render adnotacji.</summary>
+        private Rect ScaleRect(Rect ptRect) => new(ptRect.X * _scale, ptRect.Y * _scale, ptRect.Width * _scale, ptRect.Height * _scale);
 
         // ── Render ───────────────────────────────────────────────────────
 
@@ -143,6 +203,9 @@ namespace Segmento.Controls
 
             var pageScreen = new Rect(0, 0, _page.WidthPoints * _scale, _page.HeightPoints * _scale);
 
+            // Zawartosc strony rysowana w przestrzeni strony; obrot nakladany jednym transformem.
+            dc.PushTransform(new MatrixTransform(RotationMatrix()));
+
             // Podkład (biały pod spodem, żeby przezroczyste PDF nie mrugały)
             dc.DrawRectangle(Brushes.White, null, pageScreen);
             if (_page.Backdrop != null)
@@ -152,7 +215,7 @@ namespace Segmento.Controls
             foreach (var ann in _page.Annotations.OrderBy(a => a.ZIndex))
             {
                 if (!ann.IsVisible) continue;
-                var r = ScreenRect(ann.BoundsPoints);
+                var r = ScaleRect(ann.BoundsPoints);
                 bool pushed = false;
                 if (Math.Abs(ann.RotationDegrees) > 0.01)
                 {
@@ -167,7 +230,9 @@ namespace Segmento.Controls
 
             // Rysowany na żywo ink (jeszcze nie w Annotations)
             if (_liveInk != null)
-                _liveInk.Render(dc, ScreenRect(_liveInk.BoundsPoints), _scale);
+                _liveInk.Render(dc, ScaleRect(_liveInk.BoundsPoints), _scale);
+
+            dc.Pop();
 
             // Prowadnice snap
             var guidePen = new Pen(new SolidColorBrush(Color.FromRgb(0xE8, 0x5E, 0x00)), 1) { DashStyle = new DashStyle(new double[] { 3, 3 }, 0) };
@@ -242,7 +307,8 @@ namespace Segmento.Controls
                 var test = screen;
                 if (Math.Abs(ann.RotationDegrees) > 0.01)
                 {
-                    var m = new RotateTransform(-ann.RotationDegrees, r.X + r.Width / 2, r.Y + r.Height / 2).Value;
+                    double ang = ann.RotationDegrees + (_page?.Rotation ?? 0);
+                    var m = new RotateTransform(-ang, r.X + r.Width / 2, r.Y + r.Height / 2).Value;
                     test = m.Transform(screen);
                 }
                 if (r.Contains(test)) return ann;
@@ -284,12 +350,10 @@ namespace Segmento.Controls
                 case SurfaceTool.Text: BeginDrawText(screen); break;
                 case SurfaceTool.Ink:
                 case SurfaceTool.Highlighter: BeginInk(screen); break;
-                case SurfaceTool.Eraser: EraseAt(screen); break;
                 case SurfaceTool.Rectangle:
                 case SurfaceTool.Ellipse:
                 case SurfaceTool.Highlight:
-                case SurfaceTool.Redact:
-                case SurfaceTool.Stamp: BeginDrawRect(screen); break;
+                case SurfaceTool.Redact: BeginDrawRect(screen); break;
                 case SurfaceTool.Line:
                 case SurfaceTool.Arrow: BeginDrawLine(screen); break;
                 case SurfaceTool.Polyline: PolylineClick(screen, e.ClickCount); e.Handled = true; return;
@@ -325,6 +389,26 @@ namespace Segmento.Controls
         {
             _dragSnapshot.Clear();
             foreach (var a in _selection.Items) _dragSnapshot.Add((a, a.BoundsPoints, a.RotationDegrees));
+        }
+
+        /// <summary>
+        /// Prawy przycisk: zapisuje trwajaca operacje (lamana, tekst) i zglasza
+        /// zakonczenie narzedzia — host przelacza na Zaznacz.
+        /// </summary>
+        protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+        {
+            base.OnMouseRightButtonDown(e);
+            if (_tool == SurfaceTool.Select) return;
+
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            CommitEdit();
+            if (_tool == SurfaceTool.Polyline) CommitPolyline();
+            _polyPoints.Clear();
+            _drag = DragMode.None;
+            _guides.Clear();
+            InvalidateVisual();
+            ToolFinished?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
@@ -546,11 +630,29 @@ namespace Segmento.Controls
                 Width = r.Width,
                 Height = r.Height
             };
-            SetLeft(_editBox, r.X);
-            SetTop(_editBox, r.Y);
+            if (_page != null && _page.Rotation != 0)
+            {
+                _editBox.Width = ann.BoundsPoints.Width * _scale;
+                _editBox.Height = ann.BoundsPoints.Height * _scale;
+                _editBox.RenderTransformOrigin = new Point(0.5, 0.5);
+                _editBox.RenderTransform = new RotateTransform(_page.Rotation);
+                SetLeft(_editBox, r.X + r.Width / 2 - _editBox.Width / 2);
+                SetTop(_editBox, r.Y + r.Height / 2 - _editBox.Height / 2);
+            }
+            else
+            {
+                SetLeft(_editBox, r.X);
+                SetTop(_editBox, r.Y);
+            }
             Children.Add(_editBox);
             _editBox.KeyDown += EditBox_KeyDown;
             _editBox.LostFocus += (_, _) => CommitEdit();
+            _editBox.PreviewMouseRightButtonDown += (_, ev) =>
+            {
+                CommitEdit();
+                ToolFinished?.Invoke(this, EventArgs.Empty);
+                ev.Handled = true;
+            };
             _editBox.Focus();
             _editBox.SelectAll();
         }
@@ -601,9 +703,6 @@ namespace Segmento.Controls
                 SurfaceTool.Ellipse => new ShapeAnnotation { Kind = ShapeKind.Ellipse, Stroke = NewStroke, Fill = NewFill, StrokeThicknessPoints = NewThickness, Dashed = NewDashed, Name = "Elipsa" },
                 SurfaceTool.Highlight => new HighlightAnnotation { Color = NewHighlightColor, Kind = NewHighlightKind, Name = "Podświetlenie" },
                 SurfaceTool.Redact => new RedactAnnotation { FillColor = NewRedactFill, OverlayText = NewRedactOverlay, Name = "Redakcja" },
-                SurfaceTool.Stamp => StampIsImage
-                    ? new StampAnnotation { Kind = StampKind.Image, ImageBytes = StampImageBytes ?? Array.Empty<byte>(), Name = "Stempel" }
-                    : new StampAnnotation { Kind = StampKind.Text, Text = StampText, Preset = StampPreset, Name = "Stempel" },
                 _ => new ShapeAnnotation { Kind = ShapeKind.Rectangle }
             };
             ann.BoundsPoints = bounds;
@@ -723,19 +822,6 @@ namespace Segmento.Controls
             RaiseContentChanged();
         }
 
-        // ── Narzędzie: guma ──────────────────────────────────────────────
-
-        private void EraseAt(Point screen)
-        {
-            var hit = HitAnnotation(screen);
-            if (hit != null && _page != null && _doc != null)
-            {
-                _doc.History.Push(new RemoveAnnotationsCommand(_page, new[] { hit }));
-                _selection.Remove(hit);
-                RaiseContentChanged();
-            }
-        }
-
         // ── Klawiatura ───────────────────────────────────────────────────
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -837,8 +923,20 @@ namespace Segmento.Controls
                     if (Math.Abs(e - t) < by) { by = Math.Abs(e - t); bestDy = t - e; }
 
             _guides.Clear();
-            if (bestDx != 0) { double sx = (movedPt.Left + bestDx) * _scale; _guides.Add((sx, 0, sx, Height)); }
-            if (bestDy != 0) { double sy = (movedPt.Top + bestDy) * _scale; _guides.Add((0, sy, Width, sy)); }
+            if (bestDx != 0)
+            {
+                double x = movedPt.Left + bestDx;
+                var a = ToScreen(new Point(x, 0));
+                var b = ToScreen(new Point(x, _page.HeightPoints));
+                _guides.Add((a.X, a.Y, b.X, b.Y));
+            }
+            if (bestDy != 0)
+            {
+                double y = movedPt.Top + bestDy;
+                var a = ToScreen(new Point(0, y));
+                var b = ToScreen(new Point(_page.WidthPoints, y));
+                _guides.Add((a.X, a.Y, b.X, b.Y));
+            }
             return (bestDx, bestDy);
         }
 
