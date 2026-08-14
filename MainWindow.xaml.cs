@@ -932,11 +932,29 @@ namespace Segmento
 
         private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-            {
-                SetZoom(Surface.Scale * (e.Delta > 0 ? 1.15 : 1 / 1.15));
-                e.Handled = true;
-            }
+            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
+            e.Handled = true;
+
+            var sv = EditorScrollViewer;
+            double before = Surface.Scale;
+
+            // Punkt pod kursorem w przestrzeni powierzchni (px przy skali "before")
+            Point onSurface = e.GetPosition(Surface);
+            Point inViewport = e.GetPosition(sv);
+
+            SetZoom(before * (e.Delta > 0 ? 1.15 : 1 / 1.15));
+            double applied = Surface.Scale / before;
+            if (Math.Abs(applied - 1.0) < 1e-6) return;
+
+            sv.UpdateLayout();
+
+            // Gdzie ten sam punkt wypada teraz — i o ile trzeba przewinac, by wrocil pod kursor
+            Point origin = Surface.TranslatePoint(new Point(0, 0), sv);
+            double dx = origin.X + onSurface.X * applied - inViewport.X;
+            double dy = origin.Y + onSurface.Y * applied - inViewport.Y;
+
+            sv.ScrollToHorizontalOffset(sv.HorizontalOffset + dx);
+            sv.ScrollToVerticalOffset(sv.VerticalOffset + dy);
         }
 
         // ── Undo / Redo ──────────────────────────────────────────────────
@@ -1232,7 +1250,7 @@ namespace Segmento
             }
             catch (Exception ex)
             {
-                StatusText.Text = "Błąd zapisu edytora: " + ex.Message;
+                StatusText.Text = "Błąd zapisu edytora: " + ex.GetBaseException().Message;
             }
         }
 
