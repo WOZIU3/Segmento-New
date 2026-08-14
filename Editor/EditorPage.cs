@@ -35,6 +35,10 @@ namespace Segmento.Editor
         /// <summary>DPI, w którym wyrenderowano bieżący podkład.</summary>
         public int RenderDpi { get => _renderDpi; set => Set(ref _renderDpi, value); }
 
+        /// <summary>Szerokość widoczna po uwzględnieniu obrotu strony.</summary>
+        public double DisplayWidthPoints => Rotation == 90 || Rotation == 270 ? HeightPoints : WidthPoints;
+        public double DisplayHeightPoints => Rotation == 90 || Rotation == 270 ? WidthPoints : HeightPoints;
+
         public int AnnotationCount => Annotations.Count;
 
         public EditorPage(PageItem source, double widthPoints, double heightPoints, bool isImageSource)
