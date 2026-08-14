@@ -26,98 +26,97 @@ namespace Segmento.Editor
     {
         public static byte[] RenderPage(EditorPage page, int pageNumber, int totalPages, EditorBatchSettings? batch)
         {
-            using var outMs = new MemoryStream();
-            var writer = new PdfWriter(outMs);
-            var destDoc = new PdfDocument(writer);
+            var redactions = page.Annotations.OfType<RedactAnnotation>().Where(a => a.IsVisible).ToList();
+            byte[] bytes = RenderContent(page, pageNumber, totalPages, batch);
 
+            // Redakcja wymaga dokumentu otwartego do odczytu i zapisu — osobny przebieg.
+            if (redactions.Count > 0)
+                bytes = ApplyRedactions(bytes, redactions);
+
+            return bytes;
+        }
+
+        /// <summary>Przebieg 1: kopia strony źródłowej + rotacja + adnotacje + operacje wsadowe + kadr.</summary>
+        private static byte[] RenderContent(EditorPage page, int pageNumber, int totalPages, EditorBatchSettings? batch)
+        {
+            using var outMs = new MemoryStream();
+            var destDoc = new PdfDocument(new PdfWriter(outMs));
             PdfDocument? srcDoc = null;
+
             try
             {
+                double wPt = page.WidthPoints, hPt = page.HeightPoints;
                 PdfPage destPage;
 
                 if (page.IsImageSource || page.Source?.SourceBytes == null)
                 {
-                    destPage = destDoc.AddNewPage(new PageSize((float)page.WidthPoints, (float)page.HeightPoints));
+                    destPage = destDoc.AddNewPage(new PageSize((float)wPt, (float)hPt));
                     var img = TryImage(page.Source?.SourceBytes);
                     if (img != null)
                     {
                         var canvas0 = new PdfCanvas(destPage);
-                        canvas0.AddImageFittedIntoRectangle(img,
-                            new Rectangle(0, 0, (float)page.WidthPoints, (float)page.HeightPoints), false);
+                        canvas0.AddImageFittedIntoRectangle(img, new Rectangle(0, 0, (float)wPt, (float)hPt), false);
                     }
                 }
                 else
                 {
-                    srcDoc = new PdfDocument(new PdfReader(new MemoryStream(page.Source.SourceBytes)));
+                    var reader = new PdfReader(new MemoryStream(page.Source.SourceBytes));
+                    reader.SetUnethicalReading(true);      // źródła z hasłem właściciela
+                    srcDoc = new PdfDocument(reader);
                     int idx = Math.Clamp(page.Source.OriginalPageNumber, 1, srcDoc.GetNumberOfPages());
                     srcDoc.CopyPagesTo(idx, idx, destDoc);
                     destPage = destDoc.GetPage(1);
+                    wPt = destPage.GetPageSize().GetWidth();
+                    hPt = destPage.GetPageSize().GetHeight();
                 }
 
-                // Przestrzeń modelu = widoczny obszar strony (CropBox + /Rotate) — dokładnie to,
-                // co pokazuje podgląd. Rotację z edytora nakładamy DOPIERO na końcu, żeby nie
-                // zmieniać układu odniesienia dla już rozmieszczonych obiektów.
-                var box = destPage.GetCropBox();
-                int srcRotation = PdfPageSpace.NormalizeRotation(destPage.GetRotation());
-                var (wPt, hPt) = PdfPageSpace.VisibleSize(box, srcRotation);
-
-                var fonts = new PdfFontCache(destDoc);
-
-                // Redakcja (pdfSweep) — raz, po skopiowaniu treści, przed rysowaniem adnotacji.
-                // Współrzędne muszą być w układzie strony PDF, nie w układzie modelu.
-                var redactions = page.Annotations.OfType<RedactAnnotation>().Where(a => a.IsVisible).ToList();
-                if (redactions.Count > 0)
-                {
-                    var locs = new List<PdfCleanUpLocation>();
-                    foreach (var r in redactions)
-                        locs.Add(new PdfCleanUpLocation(1, PdfPageSpace.ToPageRect(r.BoundsPoints, box, srcRotation),
-                            ColorConverter(r.FillColor)));
-                    PdfCleaner.CleanUp(destDoc, locs, new CleanUpProperties());
-                }
-
-                // Świeży canvas po ewentualnym czyszczeniu. wrapOldContent=true zamyka oryginalną
-                // treść w q/Q — bez tego niezbalansowany CTM strony źródłowej przesuwałby adnotacje.
-                var canvas = new PdfCanvas(destPage, true);
-                PdfPageSpace.ApplyViewMatrix(canvas, box, srcRotation);
-                var ctx = new PdfWriterContext(destDoc, destPage, canvas, wPt, hPt, fonts);
-
-                // Adnotacje (bez redakcji) wg ZIndex, z obsługą obrotu per obiekt
-                foreach (var ann in page.Annotations.Where(a => a.IsVisible && a is not RedactAnnotation).OrderBy(a => a.ZIndex))
-                {
-                    bool rotated = Math.Abs(ann.RotationDegrees) > 0.01;
-                    if (rotated)
-                    {
-                        var b = ann.BoundsPoints;
-                        var center = ctx.ToPdfPoint(b.X + b.Width / 2, b.Y + b.Height / 2);
-                        var at = AffineTransform.GetRotateInstance(-ann.RotationDegrees * Math.PI / 180.0, center.x, center.y);
-                        canvas.SaveState();
-                        canvas.ConcatMatrix(at);
-                    }
-                    ann.WriteToPdf(ctx);
-                    if (rotated) canvas.RestoreState();
-                }
-
-                // Overlay redakcji (po czyszczeniu, na wierzchu)
-                foreach (var r in redactions.Where(r => !string.IsNullOrEmpty(r.OverlayText)))
-                {
-                    var contrast = (r.FillColor.R + r.FillColor.G + r.FillColor.B) / 3 < 128
-                        ? System.Windows.Media.Colors.White : System.Windows.Media.Colors.Black;
-                    var f = fonts.Get("Segoe UI", false, false);
-                    ctx.DrawText(r.BoundsPoints, r.OverlayText, f, 10f, PdfWriterContext.Rgb(contrast),
-                        TextAlignment.CENTER, false, 1f, null, 2f);
-                }
-
-                // Operacje wsadowe
-                if (batch != null && batch.Any)
-                    ApplyBatch(canvas, fonts, wPt, hPt, pageNumber, totalPages, batch);
-
-                // Kadr (przycina widok) — przeliczony na układ strony PDF
-                if (page.CropBoxPoints is System.Windows.Rect crop && crop.Width > 0 && crop.Height > 0)
-                    destPage.SetCropBox(PdfPageSpace.ToPageRect(crop, box, srcRotation));
-
-                // Rotacja z edytora — na samym końcu, doliczona do istniejącej /Rotate strony
+                // Rotacja (dodawana do istniejącej /Rotate strony)
                 if (page.Rotation != 0)
-                    destPage.SetRotation(PdfPageSpace.NormalizeRotation(srcRotation + page.Rotation));
+                {
+                    int cur = destPage.GetRotation();
+                    destPage.SetRotation(((cur + page.Rotation) % 360 + 360) % 360);
+                }
+
+                var drawables = page.Annotations
+                    .Where(a => a.IsVisible && a is not RedactAnnotation)
+                    .OrderBy(a => a.ZIndex)
+                    .ToList();
+                bool batchActive = batch != null && batch.Any;
+
+                // Dodatkowy strumień treści tylko wtedy, gdy jest co rysować.
+                if (drawables.Count > 0 || batchActive)
+                {
+                    var fonts = new PdfFontCache(destDoc);
+                    var canvas = new PdfCanvas(destPage.NewContentStreamAfter(), destPage.GetResources(), destDoc);
+                    var ctx = new PdfWriterContext(destDoc, destPage, canvas, wPt, hPt, fonts);
+
+                    foreach (var ann in drawables)
+                    {
+                        bool rotated = Math.Abs(ann.RotationDegrees) > 0.01;
+                        if (rotated)
+                        {
+                            var b = ann.BoundsPoints;
+                            var center = ctx.ToPdfPoint(b.X + b.Width / 2, b.Y + b.Height / 2);
+                            var at = AffineTransform.GetRotateInstance(-ann.RotationDegrees * Math.PI / 180.0, center.x, center.y);
+                            canvas.SaveState();
+                            canvas.ConcatMatrix(at);
+                        }
+                        ann.WriteToPdf(ctx);
+                        if (rotated) canvas.RestoreState();
+                    }
+
+                    if (batchActive)
+                        ApplyBatch(canvas, fonts, wPt, hPt, pageNumber, totalPages, batch!);
+
+                    canvas.Release();
+                }
+
+                // Kadr (na końcu; przycina widok)
+                if (page.CropBoxPoints is System.Windows.Rect crop && crop.Width > 0 && crop.Height > 0)
+                {
+                    float cy = (float)(hPt - (crop.Y + crop.Height));
+                    destPage.SetCropBox(new Rectangle((float)crop.X, cy, (float)crop.Width, (float)crop.Height));
+                }
 
                 destDoc.Close();
                 srcDoc?.Close();
@@ -127,6 +126,60 @@ namespace Segmento.Editor
             {
                 try { destDoc.Close(); } catch { }
                 try { srcDoc?.Close(); } catch { }
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Przebieg 2: trwałe usunięcie treści pod obszarami redakcji (pdfSweep wymaga trybu
+        /// stamping) i naniesienie napisu zastępczego już po czyszczeniu.
+        /// </summary>
+        private static byte[] ApplyRedactions(byte[] pdfBytes, List<RedactAnnotation> redactions)
+        {
+            using var inMs = new MemoryStream(pdfBytes);
+            using var outMs = new MemoryStream();
+            var doc = new PdfDocument(new PdfReader(inMs), new PdfWriter(outMs));
+
+            try
+            {
+                var pdfPage = doc.GetPage(1);
+                float hPt = pdfPage.GetPageSize().GetHeight();
+
+                var locs = new List<PdfCleanUpLocation>();
+                foreach (var r in redactions)
+                {
+                    var b = r.BoundsPoints;
+                    float y = (float)(hPt - (b.Y + b.Height));
+                    locs.Add(new PdfCleanUpLocation(1,
+                        new Rectangle((float)b.X, y, (float)b.Width, (float)b.Height),
+                        ColorConverter(r.FillColor)));
+                }
+                PdfCleaner.CleanUp(doc, locs, new CleanUpProperties());
+
+                var overlays = redactions.Where(r => !string.IsNullOrEmpty(r.OverlayText)).ToList();
+                if (overlays.Count > 0)
+                {
+                    var fonts = new PdfFontCache(doc);
+                    var canvas = new PdfCanvas(pdfPage.NewContentStreamAfter(), pdfPage.GetResources(), doc);
+                    var ctx = new PdfWriterContext(doc, pdfPage, canvas,
+                        pdfPage.GetPageSize().GetWidth(), hPt, fonts);
+
+                    foreach (var r in overlays)
+                    {
+                        var contrast = (r.FillColor.R + r.FillColor.G + r.FillColor.B) / 3 < 128
+                            ? System.Windows.Media.Colors.White : System.Windows.Media.Colors.Black;
+                        ctx.DrawText(r.BoundsPoints, r.OverlayText, fonts.Get("Segoe UI", false, false), 10f,
+                            PdfWriterContext.Rgb(contrast), TextAlignment.CENTER, false, 1f, null, 2f);
+                    }
+                    canvas.Release();
+                }
+
+                doc.Close();
+                return outMs.ToArray();
+            }
+            catch
+            {
+                try { doc.Close(); } catch { }
                 throw;
             }
         }
