@@ -133,9 +133,25 @@ namespace Segmento
         public Visibility ThumbnailVisibility => HasThumbnail && Thumbnail != null ? Visibility.Visible : Visibility.Collapsed;
         public Visibility LoadingVisibility => HasThumbnail && Thumbnail != null ? Visibility.Collapsed : Visibility.Visible;
 
-        // Niebieski border gdy zaznaczona (systemowy Windows #0078D4)
+        // Pomaranczowy gradient gdy zaznaczona - spojny z przyciskiem "Przejdz do organizacji"
+        private static readonly Brush SelectedBorderBrush = CreateSelectionGradient();
+
+        private static Brush CreateSelectionGradient()
+        {
+            var brush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0, 0.5),
+                EndPoint = new Point(1, 0.5)
+            };
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0xC4, 0x3A, 0x00), 0));
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0xE8, 0x5E, 0x00), 0.4));
+            brush.GradientStops.Add(new GradientStop(Color.FromRgb(0xF0, 0x78, 0x20), 1));
+            brush.Freeze();
+            return brush;
+        }
+
         public Brush SelectionBorderBrush => IsSelected
-            ? new SolidColorBrush(Color.FromRgb(250, 250, 250))
+            ? SelectedBorderBrush
             : new SolidColorBrush(Color.FromRgb(42, 42, 45));
 
         // Biały border w organize; biały też gdy drop target
