@@ -900,7 +900,9 @@
                         <Style x:Key="ToolChip" TargetType="RadioButton">
                             <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
                             <Setter Property="Background" Value="Transparent"/>
-                            <Setter Property="Padding" Value="10,5"/>
+                            <Setter Property="Width" Value="34"/>
+                            <Setter Property="Height" Value="34"/>
+                            <Setter Property="Padding" Value="0"/>
                             <Setter Property="Margin" Value="1,0"/>
                             <Setter Property="Cursor" Value="Hand"/>
                             <Setter Property="Template">
@@ -946,23 +948,69 @@
 
                             <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <RadioButton x:Name="ToolSelect" Content="Zaznacz" Tag="Select" GroupName="EditorTools" IsChecked="True" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Tekst" Tag="Text" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Obraz" Tag="Image" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton x:Name="ToolSelect" Tag="Select" ToolTip="Zaznacz (V)" IsChecked="True" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 5,3 L 5,15 L 8.2,11.8 L 10.2,15.6 L 12,14.7 L 10.1,11 L 14,11 Z" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Text" ToolTip="Tekst (T)" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 4,4 H 14 M 9,4 V 15" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Image" ToolTip="Obraz" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3,4 H 15 V 14 H 3 Z M 3,11 L 6.5,8 L 9,10.5 L 11.5,8.5 L 15,11.5" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
                                     <Border Style="{StaticResource ToolSep}"/>
-                                    <RadioButton Content="Rysuj" Tag="Ink" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Zakreślacz" Tag="Highlighter" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Tag="Ink" ToolTip="Rysuj" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 4,15 L 5,11.5 L 12,4.5 L 14.5,7 L 7.5,14 Z" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Highlighter" ToolTip="Zakreślacz" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 5,13 L 5,9.5 L 11,3.5 L 14.5,7 L 8.5,13 Z M 3.5,16 H 9.5" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
                                     <Border Style="{StaticResource ToolSep}"/>
-                                    <RadioButton Content="Prostokąt" Tag="Rectangle" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Elipsa" Tag="Ellipse" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Linia" Tag="Line" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Strzałka" Tag="Arrow" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Łamana" Tag="Polyline" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Tag="Rectangle" ToolTip="Prostokąt" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3.5,5 H 14.5 V 13 H 3.5 Z" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Ellipse" ToolTip="Elipsa" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3.5,9 A 5.5,4 0 1 1 14.5,9 A 5.5,4 0 1 1 3.5,9 Z" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Line" ToolTip="Linia" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 4,14 L 14,4" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Arrow" ToolTip="Strzałka" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 4,14 L 14,4 M 14,4 L 9.6,4.6 M 14,4 L 13.4,8.4" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Polyline" ToolTip="Łamana" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3,13.5 L 7,6 L 10,11.5 L 15,4.5" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
                                     <Border Style="{StaticResource ToolSep}"/>
-                                    <RadioButton Content="Podświetl" Tag="Highlight" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Stempel" Tag="Stamp" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Redakcja" Tag="Redact" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
-                                    <RadioButton Content="Guma" Tag="Eraser" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked"/>
+                                    <RadioButton Tag="Highlight" ToolTip="Podświetl" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3,6.5 H 15 V 11 H 3 Z M 3,14 H 15" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
+                                    <RadioButton Tag="Redact" ToolTip="Redakcja" GroupName="EditorTools" Style="{StaticResource ToolChip}" Checked="Tool_Checked">
+                                        <Path Data="M 3,6 H 15 V 12 H 3 Z" Stretch="None" StrokeThickness="1.4"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}"/>
+                                    </RadioButton>
                                 </StackPanel>
                             </ScrollViewer>
 
@@ -1007,7 +1055,6 @@
                                     <Button Grid.Column="0" Content="Obróć" Style="{StaticResource GhostButton}" Click="RotateRight_Click" Margin="0,0,2,0"/>
                                     <Button Grid.Column="1" Content="Usuń" Style="{StaticResource GhostButton}" Click="DeletePage_Click" Margin="2,0,0,0"/>
                                 </Grid>
-                                <Button DockPanel.Dock="Bottom" Content="Wstaw pustą" Style="{StaticResource GhostButton}" Click="InsertPage_Click" Margin="6,0,6,2"/>
                                 <ListBox x:Name="EditorPageStrip" Background="Transparent" BorderThickness="0"
                                          SelectionChanged="EditorPageStrip_SelectionChanged"
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
@@ -1016,7 +1063,11 @@
                                             <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Margin="4"
                                                     BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" Padding="4">
                                                 <StackPanel>
-                                                    <Image Source="{Binding Source.Thumbnail}" Stretch="Uniform" MaxHeight="150"/>
+                                                    <Image Source="{Binding Source.Thumbnail}" Stretch="Uniform" MaxHeight="150">
+                                                        <Image.LayoutTransform>
+                                                            <RotateTransform Angle="{Binding Rotation}"/>
+                                                        </Image.LayoutTransform>
+                                                    </Image>
                                                     <TextBlock Text="{Binding Source.DisplayName}" FontSize="10" Margin="0,2,0,0"
                                                                Foreground="{DynamicResource TextTertiaryBrush}" HorizontalAlignment="Center"/>
                                                 </StackPanel>
@@ -1031,12 +1082,14 @@
                         <ScrollViewer Grid.Column="1" x:Name="EditorScrollViewer"
                                       Background="{DynamicResource WindowBackgroundBrush}"
                                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                      SizeChanged="EditorScroll_SizeChanged"
                                       PreviewMouseWheel="EditorScroll_PreviewMouseWheel">
                             <Grid Margin="40">
                                 <ctl:EditorSurface x:Name="Surface"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
                                                    SelectionChanged="Surface_SelectionChanged"
-                                                   ContentChanged="Surface_ContentChanged"/>
+                                                   ContentChanged="Surface_ContentChanged"
+                                                   ToolFinished="Surface_ToolFinished"/>
                             </Grid>
                         </ScrollViewer>
 
