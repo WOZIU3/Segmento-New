@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -47,6 +48,7 @@ namespace Segmento
         // --- Nowy edytor (model obiektowy) ---
         private readonly EditorDocument _doc = new();
         private System.Windows.Threading.DispatcherTimer? _zoomDebounce;
+        private bool _pendingZoomFit;
         private bool _suppressStripSelection;
         private bool _suppressPropsUpdate;
 
@@ -69,19 +71,6 @@ namespace Segmento
                 (from, to) => { _organizePages.Move(from, to); UpdateOrganizeOrder(); });
             SourceInitialized += OnSourceInitialized;
             StateChanged += OnStateChanged;
-            PreviewKeyDown += MainWindow_PreviewKeyDown;
-        }
-
-        /// <summary>Skróty globalne edytora (Ctrl+0 — dopasuj do okna).</summary>
-        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (EditorView.Visibility != Visibility.Visible) return;
-            if (!Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) return;
-            if (e.Key is Key.D0 or Key.NumPad0)
-            {
-                ZoomFit();
-                e.Handled = true;
-            }
         }
 
         private void OnSourceInitialized(object? sender, EventArgs e)
@@ -801,7 +790,10 @@ namespace Segmento
             NavEditor.IsEnabled = _doc.Pages.Count > 0;
             if (_doc.Pages.Count > 0)
             {
-                SelectStripPage(_doc.Pages.FirstOrDefault(p => !p.IsDeleted));
+                _suppressStripSelection = true;
+                EditorPageStrip.SelectedIndex = 0;
+                _suppressStripSelection = false;
+                ShowPage(_doc.Pages.FirstOrDefault(p => !p.IsDeleted));
             }
         }
 
@@ -819,14 +811,7 @@ namespace Segmento
 
         private async void ShowPage(EditorPage? page)
         {
-            if (page == null)
-            {
-                _doc.Current = null;
-                Surface.SetPage(null);
-                LayersList.ItemsSource = null;
-                UpdatePropsPanel();
-                return;
-            }
+            if (page == null) return;
             _doc.Current = page;
             Surface.SetPage(page);
             LayersList.ItemsSource = page.Annotations;
@@ -840,7 +825,7 @@ namespace Segmento
         {
             try
             {
-                int widthPx = EditorRenderer.TargetWidth(page.WidthPoints * Surface.Scale);
+                int widthPx = Math.Max(1, (int)Math.Round(page.WidthPoints * Surface.Scale));
                 await _doc.Renderer.EnsureBackdropAsync(page, widthPx);
                 if (_doc.Current == page) Surface.Refresh();
             }
@@ -874,9 +859,10 @@ namespace Segmento
 
             StatusText.Text = tag switch
             {
-                "Polyline" => "Klikaj punkty łamanej, Enter kończy, Esc anuluje",
+                "Polyline" => "Lewy przycisk dodaje punkt, prawy kończy łamaną i wraca do zaznaczania",
                 "Redact" => "Zaznacz obszar do trwałego usunięcia treści (redakcja)",
-                _ => "Gotowy"
+                "Select" => "Gotowy",
+                _ => "Prawy przycisk myszy kończy rysowanie i wraca do zaznaczania"
             };
         }
 
@@ -928,9 +914,20 @@ namespace Segmento
             var page = _doc.Current;
             if (page == null) return;
             double vw = EditorScrollViewer.ViewportWidth, vh = EditorScrollViewer.ViewportHeight;
-            if (vw <= 0 || vh <= 0) { SetZoom(1.0); return; }
-            double s = Math.Min((vw - 100) / page.WidthPoints, (vh - 100) / page.HeightPoints);
+            if (vw <= 0 || vh <= 0)
+            {
+                // Widok jeszcze bez rozmiaru (pierwsze wejscie w zakladke) — dopasuj po ulozeniu.
+                _pendingZoomFit = true;
+                return;
+            }
+            _pendingZoomFit = false;
+            double s = Math.Min((vw - 100) / page.DisplayWidthPoints, (vh - 100) / page.DisplayHeightPoints);
             SetZoom(Math.Clamp(s, 0.1, 4.0));
+        }
+
+        private void EditorScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (_pendingZoomFit) ZoomFit();
         }
 
         private void EditorScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -960,43 +957,22 @@ namespace Segmento
 
         private void RotateRight_Click(object sender, RoutedEventArgs e)
         {
-            if (_doc.Current == null) return;
-            _doc.History.Push(new RotatePageCommand(_doc.Current, 90));
-            StatusText.Text = "Strona zostanie obrócona przy zapisie";
+            var page = _doc.Current;
+            if (page == null) return;
+            _doc.History.Push(new RotatePageCommand(page, 90));
+            ZoomFit();
+            Surface.Refresh();
+            StatusText.Text = $"Obrót strony: {page.Rotation}°";
         }
 
         private void DeletePage_Click(object sender, RoutedEventArgs e)
         {
             if (_doc.Current == null) return;
             var toDelete = _doc.Current;
-            int at = _doc.Pages.IndexOf(toDelete);
-
-            // Następna żywa strona po usuwanej, a gdy brak — poprzednia.
-            var next = _doc.Pages.Skip(at + 1).FirstOrDefault(p => !p.IsDeleted)
-                       ?? _doc.Pages.Take(Math.Max(0, at)).LastOrDefault(p => !p.IsDeleted);
-
+            var next = _doc.Pages.FirstOrDefault(p => !p.IsDeleted && p != toDelete);
             _doc.History.Push(new DeletePageCommand(toDelete));
             _stripView?.Refresh();
-            SelectStripPage(next);
-        }
-
-        private void InsertPage_Click(object sender, RoutedEventArgs e)
-        {
-            int index = _doc.Current != null ? _doc.Pages.IndexOf(_doc.Current) + 1 : _doc.Pages.Count;
-            var cmd = new InsertBlankPageCommand(_doc, index, 595, 842);
-            _doc.History.Push(cmd);
-            _stripView?.Refresh();
-            var inserted = index >= 0 && index < _doc.Pages.Count ? _doc.Pages[index] : _doc.Pages.LastOrDefault();
-            SelectStripPage(inserted);
-        }
-
-        /// <summary>Ustawia stronę w pasku miniatur i na powierzchni (bez pętli zdarzeń zaznaczenia).</summary>
-        private void SelectStripPage(EditorPage? page)
-        {
-            _suppressStripSelection = true;
-            try { EditorPageStrip.SelectedItem = page; }
-            finally { _suppressStripSelection = false; }
-            ShowPage(page);
+            ShowPage(next);
         }
 
         // ── Powierzchnia ─────────────────────────────────────────────────
@@ -1013,6 +989,13 @@ namespace Segmento
         private void Surface_ContentChanged(object sender, EventArgs e)
         {
             _doc.MarkDirty();
+        }
+
+        /// <summary>Prawy przycisk myszy zakonczyl prace narzedzia — wracamy do Zaznacz.</summary>
+        private void Surface_ToolFinished(object sender, EventArgs e)
+        {
+            if (ToolSelect.IsChecked != true) ToolSelect.IsChecked = true;
+            StatusText.Text = "Gotowy";
         }
 
         private void LayersList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1226,7 +1209,7 @@ namespace Segmento
                     for (int i = 0; i < live.Count; i++)
                     {
                         var bytes = PdfDocumentWriter.RenderPage(live[i], i + 1, total, _doc.Batch);
-                        c += PdfPostProcess.ExportPagesToPng(bytes, dir, "strona", dpi.Value, i + 1);
+                        c += PdfPostProcess.ExportPagesToPng(bytes, dir, $"strona_{i + 1}", dpi.Value);
                     }
                     return c;
                 });
@@ -1236,25 +1219,6 @@ namespace Segmento
         }
 
         // ── Zapis edycji ─────────────────────────────────────────────────
-
-        /// <summary>
-        /// Nanosi niezatwierdzone zmiany z edytora przed eksportem — bez tego eksport po cichu
-        /// pominąłby wszystko, czego użytkownik nie zapisał przyciskiem „Zapisz”.
-        /// </summary>
-        private void EnsureEditorApplied()
-        {
-            if (!_doc.IsDirty || _doc.Pages.Count == 0) return;
-            try
-            {
-                _doc.ApplyTo(_editedPages, _doc.Batch);
-                SyncOrganizeFromEditor();
-                _doc.MarkSaved();
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = "Nie udało się nanieść zmian z edytora: " + ex.Message;
-            }
-        }
 
         private void SaveEditor_Click(object sender, RoutedEventArgs e)
         {
@@ -1378,8 +1342,6 @@ namespace Segmento
 
         private async void ExportAll_Click(object sender, RoutedEventArgs e)
         {
-            EnsureEditorApplied();
-
             List<PageItem> pagesToExport = _organizePages.Count > 0
                 ? _organizePages.ToList()
                 : _pages.Where(p => p.IsSelected).ToList();
@@ -1443,8 +1405,6 @@ namespace Segmento
 
         private async void ExportSeparate_Click(object sender, RoutedEventArgs e)
         {
-            EnsureEditorApplied();
-
             List<PageItem> pagesToExport = _organizePages.Count > 0
                 ? _organizePages.ToList()
                 : _pages.Where(p => p.IsSelected).ToList();
@@ -1694,3 +1654,5 @@ namespace Segmento
         #endregion
     }
 }
+
+
